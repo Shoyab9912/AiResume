@@ -55,8 +55,9 @@ schema.methods.hasProAcess = function (): boolean {
   return !!this.subscription && new Date() < new Date(this.subscription);
 };
 
-schema.methods.canMakeRequest = function (): boolean {
-  return this.hasProAcess() || this.freeRequestsUsed < 3;
+schema.methods.canMakeRequest = function () {
+  if (this.hasProAcess()) return true;
+  return this.freeRequestsUsed < 3; 
 };
 
 export const User = mongoose.model<IUser>("User", schema);

@@ -7,7 +7,7 @@ import {
   getMe,
 } from "../controllers/user.controller.js";
 
-import { verifyJwt } from "../middlewares/aurth.middleware.js";
+import { verifyJwt } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 

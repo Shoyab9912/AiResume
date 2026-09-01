@@ -13,8 +13,9 @@ class BadRequestError extends ApiError {
   }
 }
 
+
 class ValidationError extends ApiError {
-  constructor(message: string = "Validation failed", errors: unknown[] = []) {
+  constructor(message: string = "Validation failed", errors: unknown = []) {
     super(422, message, errors);
   }
 }

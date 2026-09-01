@@ -23,7 +23,7 @@ export const registerSchema = z.object({
       error: (issue) =>
         issue.input === undefined ? "Password is required" : "Password must be a string",
     })
-    .min(4, "Password must be at least 8 characters long")
+    .min(6, "Password must be at least 8 characters long")
     .max(8, "Password is too long"),
 });
 

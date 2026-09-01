@@ -1,14 +1,15 @@
-
 class ApiError extends Error {
   statusCode: number;
-  errors: unknown[];
-  success: boolean;
+  errors?: unknown;              
   isOperational: boolean;
+  data?: object | undefined;
+  success:boolean;
 
   constructor(
     statusCode: number,
     message: string = "something went wrong",
-    errors: unknown[] = [],
+    errors: unknown = [],
+    data?: object,
     stack: string = ""
   ) {
     super(message);
@@ -16,6 +17,7 @@ class ApiError extends Error {
     this.errors = errors;
     this.success = false;
     this.isOperational = true;
+    this.data = data;
 
     if (stack) {
       this.stack = stack;

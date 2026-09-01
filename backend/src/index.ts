@@ -1,9 +1,9 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import express from "express";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
-dotenv.config();
 import userRoutes from "./routes/user.route.js"
 import authRoutes from "./routes/auth.route.js"
+import aiRoutes from "./routes/ai.route.js"
 import connect from "./config/db.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
@@ -24,6 +24,7 @@ app.use(cookieParser())
 
 app.use("/api/v1/users",userRoutes)
 app.use("/api/v1/auth",authRoutes)
+app.use("/api/v1/ai",aiRoutes)
 
 app.use(errorHandler)
 

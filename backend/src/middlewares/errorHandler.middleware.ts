@@ -24,15 +24,14 @@ export const errorHandler = (
     return;
   }
 
-
   if (err instanceof ApiError && err.isOperational) {
-    res.status(err.statusCode).json({
-      status: "error",
-      message: err.message,
-      ...(err.errors.length > 0 && { errors: err.errors }),
-    });
-    return;
-  }
+  res.status(err.statusCode).json({
+    status: "error",
+    message: err.message,
+    errors: err.errors 
+  });
+  return;
+}
 
   res.status(500).json({
     status: "error",

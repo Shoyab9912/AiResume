@@ -6,15 +6,20 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { verifyGoogleIdToken } from "../utils/googleAuth.js";
 import jwt, { JwtPayload } from "jsonwebtoken";
 
-export const googleLogin = asyncHandler(async (req, res) => {
-  const { idToken } = req.body;
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+};
 
-  if (!idToken) {
+export const googleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body; 
+
+  if (!credential) {
     throw new BadRequestError("Google ID token is required");
   }
 
-  const payload = await verifyGoogleIdToken(idToken);
-
+  const payload = await verifyGoogleIdToken(credential);
   const { email, name, picture, email_verified } = payload;
 
   if (!email || !email_verified) {
@@ -30,32 +35,27 @@ export const googleLogin = asyncHandler(async (req, res) => {
       image: picture ?? "",
       loginProvider: LoginProvider.GOOGLE,
     });
-  } else if (!user.image && picture) {
-    user.image = picture;
-    await user.save();
   }
 
   const accessToken = generateAccessToken(user._id.toString(), user.email);
-
   const refreshToken = generateRefreshToken(user._id.toString());
 
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 15 * 60 * 1000,
-  });
 
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  const shouldUpdateImage = !user.image && picture;
+  await User.findByIdAndUpdate(
+    user._id,
+    {
+      refreshToken,
+      ...(shouldUpdateImage && { image: picture }),
+    },
+    { runValidators: true }
+  );
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "Google login successful", user));
+  res
+    .cookie("accessToken", accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 })
+    .cookie("refreshToken", refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
+
+  return res.status(200).json(new ApiResponse(200, "Google login successful", user));
 });
 
 export const generateAccessAndRefreshToken = asyncHandler(async (req, res) => {
@@ -67,21 +67,24 @@ export const generateAccessAndRefreshToken = asyncHandler(async (req, res) => {
 
   const decoded = jwt.verify(
     token,
-    process.env.REFRESH_TOKEN_SECRET as string,
+    process.env.REFRESH_TOKEN_SECRET as string
   ) as JwtPayload;
 
   const user = await User.findById(decoded.userId).select("+refreshToken");
 
-  if (!user || !user.refreshToken !== token) {
+  if (!user || user.refreshToken !== token) {
     throw new UnauthorizedError("invalid token");
   }
 
   const accessToken = generateAccessToken(user._id.toString(), user.email);
-
   const refreshToken = generateRefreshToken(user._id.toString());
 
   user.refreshToken = refreshToken;
   await user.save({ validateBeforeSave: false });
 
-  return res.status(200).json(new ApiResponse(200,"refreshed succesfully",accessToken))
+  res
+    .cookie("accessToken", accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 })
+    .cookie("refreshToken", refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
+
+  return res.status(200).json(new ApiResponse(200, "refreshed successfully", null));
 });
