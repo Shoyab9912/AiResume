@@ -13,9 +13,11 @@ import {
   Upload,
 } from "lucide-react";
 import { ScoreRing } from "../ring";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 const Analyze = () => {
+  const queryClient = useQueryClient();
   const [result, setResult] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,6 +40,7 @@ const Analyze = () => {
       const pdfBase64 = await toBase64(file);
       const data = await aiApi.analyzeResume(pdfBase64);
       setResult(data);
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
     } catch (err:any) {
       setError(
         err?.response?.data?.message || "Analysis Failed. Please try again."
@@ -49,6 +52,7 @@ const Analyze = () => {
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
+     if (loading) return; 
     const f = e.dataTransfer.files[0];
     if (f) handleFile(f);
   };
@@ -60,8 +64,8 @@ const Analyze = () => {
            <div
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
-          onClick={() => fileRef.current?.click()}
-          className="glass-card border-dashed border-white/15 flex flex-col items-center justify-center gap-3 py-10 cursor-pointer hover:border-indigo-500/40 hover:bg-white/5 transition-all duration-300 group"
+           onClick={() => !loading && fileRef.current?.click()}
+          className={`glass-card   ${loading ? "pointer-events-none opacity-60" : ""}border-dashed border-white/15 flex flex-col items-center justify-center gap-3 py-10 cursor-pointer hover:border-indigo-500/40 hover:bg-white/5 transition-all duration-300 group`}
         >
           <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border-dashed border-indigo-500/20 flex items-center justify-center group-hover:scale-105 transition-transform">
             <Upload size={32} className="text-indigo-400" />

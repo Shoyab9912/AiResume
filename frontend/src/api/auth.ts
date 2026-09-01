@@ -43,7 +43,7 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as CustomAxiosRequestConfig;
 
-    if (originalRequest.url?.includes("/me") || originalRequest.url?.includes("/login") || originalRequest.url?.includes("/refresh-token")) {
+    if (originalRequest.url?.includes("/login") || originalRequest.url?.includes("/refresh-token")) {
     return Promise.reject(error);
   }
 
@@ -58,15 +58,13 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await axios.get(`${server}/api/v1/users/refresh-token`, {
+        await axios.get(`${server}/api/v1/auth/refresh-token`, {
           withCredentials: true,
         });
-
         processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        window.location.href = "/login";
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

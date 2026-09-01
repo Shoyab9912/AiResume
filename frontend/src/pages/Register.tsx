@@ -67,7 +67,6 @@ const Register = () => {
           <GoogleLogin
             onSuccess={(credentialResponse) => {
               if (credentialResponse.credential) {
-                // Pass the token straight to your React Query mutation
                 googleMutation.mutate(credentialResponse.credential);
               }
             }}

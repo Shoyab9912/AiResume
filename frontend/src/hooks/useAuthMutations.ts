@@ -19,20 +19,13 @@ export const useAuthMutations = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // A reusable success handler so we don't repeat code
   const handleSuccess = (res: ApiResponse<User>) => {
-    // 1. Update the global context instantly
     queryClient.setQueryData(["authUser"], res.data);
-    
-    // 2. Show a success message
     toast.success(res.message || "Welcome back!");
-    
-
     navigate("/");
   };
 
   const handleError = (error: ApiError) => {
-    // Extract the exact error message your Express backend sends
     const message = error.response?.data?.message || "Something went wrong. Please try again.";
     toast.error(message);
   };

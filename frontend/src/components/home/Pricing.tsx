@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; // <-- Updated to your new hook
+import { useAuth } from "../../hooks/useAuth"; 
 import { plans } from "../../utils/plans";
 import { useState } from "react";
 import { CheckCircle, Shield } from "lucide-react";
@@ -69,7 +69,6 @@ function PlanCTA({
     }
   }
 
-  // Placeholder handler for when Razorpay is not yet integrated
   const handleSubscribeClick = (planName: string) => {
     if (!isAuth) {
       navigate("/login");

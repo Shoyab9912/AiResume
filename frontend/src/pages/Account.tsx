@@ -7,11 +7,13 @@ const Account = () => {
 
   const isPro = user?.subscription && new Date() < new Date(user.subscription);
   const freeLeft = Math.max(0, 3 - (user?.freeRequestsUsed ?? 0));
+  const cappedUsed = 3 - freeLeft;
 
-  console.log(freeLeft);
   return (
     <div className="bg-page flex items-start justify-center px-4 pt-28 pb-12">
       <div className="w-full max-w-xl flex flex-col gap-5">
+        
+        {/* User Profile Card */}
         <div className="glass-card p-6 flex items-center gap-4">
           <img
             src="/user.png"
@@ -33,6 +35,7 @@ const Account = () => {
           </button>
         </div>
 
+        {/* Plan Info Card */}
         <div
           className={`glass-card p-6 flex items-center gap-4 ${
             isPro ? "border-emerald-500/25" : "border-white/8"
@@ -62,7 +65,7 @@ const Account = () => {
               </p>
             ) : (
               <p className="text-white/40 text-sm mt-0.5">
-                {freeLeft} of 3 free request remaining
+                {freeLeft} of 3 free requests remaining
               </p>
             )}
           </div>
@@ -76,27 +79,31 @@ const Account = () => {
           )}
         </div>
 
+        {/* Free Requests Progress Bar */}
         {!isPro && (
           <div className="glass-card p-6 flex flex-col gap-3">
             <div className="flex justify-between text-sm">
               <span className="text-white/50">Free requests used</span>
               <span className="text-white/70 font-medium">
-                {user?.freeRequestsUsed ?? 0}/3
+                {cappedUsed}/3 {/* Safely capped at 3 */}
               </span>
             </div>
+            
             <div className="w-full h-1.5 bg-white/8 rounded-full overflow-hidden">
               <div
-                className="h-full bg-linear-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-500"
                 style={{
-                  width: `${((user?.freeRequestsUsed ?? 0) / 3) * 100}%`,
+                  width: `${(cappedUsed / 3) * 100}%`, // Safely caps at 100% width
                 }}
               />
-              {freeLeft === 0 && (
-                <p className="text-xs text-amber-400/80">
-                  You have used all free requests. Upgrade to continue
-                </p>
-              )}
             </div>
+            
+            {/* Moved this OUTSIDE the overflow-hidden div so it's actually visible! */}
+            {freeLeft === 0 && (
+              <p className="text-xs text-amber-400/80 mt-1">
+                You have used all free requests. Upgrade to continue.
+              </p>
+            )}
           </div>
         )}
       </div>
