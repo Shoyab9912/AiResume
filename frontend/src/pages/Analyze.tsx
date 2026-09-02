@@ -89,7 +89,8 @@ const Analyze = () => {
           type="file"
           ref={fileRef}
           accept=".pdf"
-          className="hidden"
+          className="hidden"    
+          disabled={loading}
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleFile(f);

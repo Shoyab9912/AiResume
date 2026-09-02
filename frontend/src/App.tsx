@@ -8,6 +8,7 @@ import Footer from "./components/layout/Footer";
 import Account from "./pages/Account";
 import Home from "./pages/Home";
 import Analyze from "./pages/Analyze";
+import JobMatcher from "./pages/JobMatcher";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route element={<MainLayout />}>
            <Route path="/account" element={<Account />} />
             <Route path="/analyze" element={<Analyze />} />
+            <Route path="/jobmatcher" element={<JobMatcher />} />
             
           </Route>
         </Route>
