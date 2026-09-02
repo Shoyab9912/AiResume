@@ -3,17 +3,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { authApi } from "../api/auth";
-import type { LoginPayload, RegisterPayload, User, ApiResponse } from "../types";
+import type { LoginPayload, RegisterPayload, User, ApiResponse,ApiError } from "../types";
 
 
-interface ApiError {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-}
+
 
 export const useAuthMutations = () => {
   const queryClient = useQueryClient();

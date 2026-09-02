@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { Analysis } from "../types";
 import { downloadReport } from "../utils/html-report";
-import { prioBg,prioColor,scoreBar,scoreColor } from "../utils/ui";
+import { prioBg, prioColor, scoreBar, scoreColor } from "../utils/ui";
 import { toBase64 } from "../utils/file";
 import { aiApi } from "../api/ai";
 import {
@@ -10,62 +10,57 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Target,
   Upload,
 } from "lucide-react";
 import { ScoreRing } from "../ring";
 import { useQueryClient } from "@tanstack/react-query";
-
+import { useToolForm } from "../hooks/useToolForm";
+import { extractErrorMessage } from "../utils/error";
 
 const Analyze = () => {
   const queryClient = useQueryClient();
   const [result, setResult] = useState<Analysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    file,
+    loading,
+    setLoading,
+    error,
+    setError,
+    fileRef,
+    handleFileChange,
+    getDropzoneProps,
+  } = useToolForm();
 
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  async function handleFile(file: File) {
-    if (file.type !== "application/pdf") {
-      return setError("Please upload a PDF file.");
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      return setError("File size should be less than 5MB.");
-    }
-
+  async function handleSubmit() {
     setError("");
-    setLoading(true);
     setResult(null);
 
+    if (!file) return setError("Please upload your resume PDF.");
+
+    setLoading(true);
     try {
       const pdfBase64 = await toBase64(file);
       const data = await aiApi.analyzeResume(pdfBase64);
       setResult(data);
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
-    } catch (err:any) {
-      setError(
-        err?.response?.data?.message || "Analysis Failed. Please try again."
-      );
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err))
     } finally {
       setLoading(false);
     }
   }
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-     if (loading) return; 
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
-  };
-
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
-    
-           <div
-          onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-           onClick={() => !loading && fileRef.current?.click()}
-          className={`glass-card   ${loading ? "pointer-events-none opacity-60" : ""}border-dashed border-white/15 flex flex-col items-center justify-center gap-3 py-10 cursor-pointer hover:border-indigo-500/40 hover:bg-white/5 transition-all duration-300 group`}
+        <div
+          {...getDropzoneProps()}
+          className={`glass-card border-dashed flex flex-col items-center justify-center gap-3 py-10 transition-all group ${
+            loading
+              ? "border-white/5 opacity-50 cursor-not-allowed"
+              : "border-white/15 cursor-pointer hover:border-indigo-500/40 hover:bg-white/2"
+          }`}
         >
           <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border-dashed border-indigo-500/20 flex items-center justify-center group-hover:scale-105 transition-transform">
             <Upload size={32} className="text-indigo-400" />
@@ -89,37 +84,51 @@ const Analyze = () => {
           type="file"
           ref={fileRef}
           accept=".pdf"
-          className="hidden"    
+          className="hidden"
           disabled={loading}
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) handleFile(f);
+            if (f) handleFileChange(f);
             e.target.value = "";
           }}
-        />    
+        />
+
+        {!loading && (
+          <button
+            onClick={handleSubmit}
+            className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+          >
+            <Target size={16} /> Analyze Resume
+          </button>
+        )}
+
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 size={36} className="text-indigo-400 animate-spin" />
-            <p className="text-white/40 text-sm">Analysing your resume... this takes a few seconds.</p>
+            <p className="text-white/40 text-sm">
+              Analysing your resume... this takes a few seconds.
+            </p>
           </div>
         )}
 
         {result && !loading && (
           <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in">
-            
             <div className="relative flex items-center justify-center shrink-0">
               <ScoreRing score={result.atsScore} />
               <div className="absolute flex flex-col items-center">
                 <span
-                  className={`text-2xl font-black ${scoreColor(result.atsScore)}`}
+                  className={`text-2xl font-black ${scoreColor(
+                    result.atsScore
+                  )}`}
                 >
                   {result.atsScore}
                 </span>
-                <span className="text-[10px] text-white/30 font-bold tracking-wider">ATS</span>
+                <span className="text-[10px] text-white/30 font-bold tracking-wider">
+                  ATS
+                </span>
               </div>
             </div>
-            
-         
+
             <div className="flex-1 min-w-0 min-w-[250px]">
               <p className="font-semibold mb-1">Overall Analysis</p>
               <p className="text-white/45 text-sm leading-relaxed">
@@ -140,7 +149,9 @@ const Analyze = () => {
                   </div>
                   <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
                     <div
-                      className={`h-full bg-gradient-to-r ${scoreBar(val.score)} rounded-full transition-all duration-1000 ease-out`}
+                      className={`h-full bg-gradient-to-r ${scoreBar(
+                        val.score
+                      )} rounded-full transition-all duration-1000 ease-out`}
                       style={{ width: `${val.score}%` }}
                     />
                   </div>
@@ -149,7 +160,6 @@ const Analyze = () => {
               ))}
             </div>
 
-         
             <div className="w-full glass-card p-6 flex flex-col gap-3">
               <p className="text-xs text-white/30 uppercase tracking-widest font-bold">
                 Strengths
@@ -168,7 +178,6 @@ const Analyze = () => {
               ))}
             </div>
 
-         
             <div className="w-full glass-card p-6 flex flex-col gap-4">
               <p className="text-xs text-white/30 uppercase tracking-widest font-bold">
                 Actionable Suggestions
@@ -176,14 +185,18 @@ const Analyze = () => {
               {result.suggestions.map((s, i) => (
                 <div
                   key={i}
-                  className={`p-4 rounded-xl border flex flex-col gap-2 transition-colors ${prioBg[s.priority]}`}
+                  className={`p-4 rounded-xl border flex flex-col gap-2 transition-colors ${
+                    prioBg[s.priority]
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-white/90">
                       {s.category}
                     </span>
                     <span
-                      className={`text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${prioColor[s.priority]}`}
+                      className={`text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                        prioColor[s.priority]
+                      }`}
                     >
                       {s.priority} Priority
                     </span>

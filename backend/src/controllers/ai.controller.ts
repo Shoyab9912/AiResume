@@ -21,22 +21,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY as string });
 
 export const analyzeResume = asyncHandler(
   async (req: AuthenticatedRequest, res, next) => {
-    const { success, data, error } = analyseResumeBodySchema.safeParse(
-      req.body,
-    );
-
-    if (!success) {
-      throw new ValidationError(
-        "Validation failed",
-        z.flattenError(error).fieldErrors,
-      );
-    }
-
-    const { pdfBase64 } = data;
-
-    if (!pdfBase64) {
-      throw new BadRequestError("PDF is required");
-    }
+     const { pdfBase64 } = req.body;
 
     const user = await User.findById(req.user?._id);
 
@@ -97,14 +82,7 @@ export const analyzeResume = asyncHandler(
 
 export const jobMatcher = asyncHandler(
   async (req: AuthenticatedRequest, res) => {
-    const { success, data, error } = jobMatcherBodySchema.safeParse(req.body);
-
-    if (!success) {
-      throw new ValidationError(
-        "Validation failed",
-        z.flattenError(error).fieldErrors,
-      );
-    }
+     const data = req.body;
 
     if (
       data.mode === "manual" &&

@@ -29,6 +29,17 @@ export interface ApiResponse<T = unknown> {
   success?: boolean;
 }
 
+export interface ApiError {
+  response?: {
+    data?: ApiErrorResponse;
+  };
+  message?: string;
+}
+export interface ApiErrorResponse {
+  message: string;
+  errors?: Record<string, string[]>;
+}
+
 // ── 2. APP CONTEXT TYPES ──
 
 export interface AppContextType {

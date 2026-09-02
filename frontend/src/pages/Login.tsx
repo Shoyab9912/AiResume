@@ -3,7 +3,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-
+import { type ApiError } from "../types";
 import { useAuthMutations } from "../hooks/useAuthMutations";
 import { Input } from "../components/ui/Input";
 
@@ -23,14 +23,28 @@ const Login = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
   });
 
   const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data);
-  };
+  loginMutation.mutate(data, {
+    onError: (error: ApiError) => {
+      const backendErrors = error.response?.data?.errors;
+
+      if (backendErrors) {
+        Object.entries(backendErrors).forEach(([field, messages]) => {
+          setError(field as keyof LoginFormValues, {
+            type: "server",
+            message: messages[0],
+          });
+        });
+      }
+    },
+  });
+};
 
 
 

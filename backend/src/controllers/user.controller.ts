@@ -24,11 +24,6 @@ const cookieOptions = {
 const registerUser = asyncHandler(async (req, res) => {
   const { email, name, password } = req.body;
 
-    console.log(req.body)
-  if (!email || !name || !password) {
-    throw new BadRequestError("Name, email and password are required");
-  }
-
   const isUserExists = await User.findOne({ email });
 
   if (isUserExists) {
@@ -72,10 +67,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
-  if (!email || !password) {
-    throw new BadRequestError("Email and password are required");
-  }
 
   const user = await User.findOne({ email }).select("+password");
 

@@ -1,6 +1,6 @@
 import { matchBg, matchColor,} from "../utils/ui";
 import { toBase64 } from "../utils/file";
-import { useRef, useState } from "react";
+import {  useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -15,7 +15,10 @@ import {
 import type { Job } from "../types";
 import { aiApi, type JobMatchPayload } from "../api/ai";
 import { Input } from "../components/ui/Input";
-import { Textarea } from "../components/ui/TextArea";
+import { Textarea } from "../components/ui/Textarea";
+import { useToolForm } from "../hooks/useToolForm";
+import { extractErrorMessage } from "../utils/error";
+
 
 interface Result {
   jobs: Job[];
@@ -94,27 +97,14 @@ const ManualInputForm = ({ onSubmit }: { onSubmit: (skills: string[], exp: strin
 
 const JobMatcherPage = () => {
   const queryClient = useQueryClient();
-
-  const [mode, setMode] = useState<"manual" | "resume">("manual");
-  const [file, setFile] = useState<File | null>(null);
-
+  const { 
+    mode, setMode, 
+    file, 
+    loading, setLoading, 
+    error, setError, 
+    fileRef, handleFileChange, getDropzoneProps 
+  } = useToolForm();
   const [result, setResult] = useState<Result | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  function handleFileChange(f: File) {
-    if (f.type !== "application/pdf") {
-      return setError("Please upload a PDF file.");
-    }
-    if (f.size > 5 * 1024 * 1024) {
-      return setError("File size should be less than 5MB.");
-    }
-    setError("");
-    setFile(f);
-  }
-
   async function handleSubmit(submittedSkills?: string[], submittedExperience?: string) {
     setError("");
     setResult(null);
@@ -141,8 +131,8 @@ const JobMatcherPage = () => {
       setResult(data);
 
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to fetch job matches. Please try again.");
+    } catch (err: unknown) {
+       setError(extractErrorMessage(err))
     } finally {
       setLoading(false);
     }
@@ -173,13 +163,7 @@ const JobMatcherPage = () => {
 
         {mode === "resume" && (
           <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (loading) return;
-              const f = e.dataTransfer.files[0];
-              if (f) handleFileChange(f);
-            }}
+            {...getDropzoneProps()}
             onClick={() => {
               if (loading) return;
               fileRef.current?.click();

@@ -7,10 +7,11 @@ import { z } from "zod";
 import { useAuthMutations } from "../hooks/useAuthMutations";
 import { Input } from "../components/ui/Input";
 import { features } from "../utils/features";
+import {type ApiError} from "../types"
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -22,14 +23,28 @@ const Register = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
   });
 
   const onSubmit = (data: RegisterFormValues) => {
-    registerMutation.mutate(data);
-  };
+  registerMutation.mutate(data, {
+    onError: (error: ApiError) => {
+      const backendErrors = error.response?.data?.errors;
+
+      if (backendErrors) {
+        Object.entries(backendErrors).forEach(([field, messages]) => {
+          setError(field as keyof RegisterFormValues, {
+            type: "server",
+            message: messages[0],
+          });
+        });
+      }
+    },
+  });
+};
 
 
   const isLoading = registerMutation.isPending
