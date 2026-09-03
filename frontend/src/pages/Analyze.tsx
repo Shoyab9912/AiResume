@@ -5,18 +5,17 @@ import { prioBg, prioColor, scoreBar, scoreColor } from "../utils/ui";
 import { toBase64 } from "../utils/file";
 import { aiApi } from "../api/ai";
 import {
-  AlertCircle,
   CheckCircle2,
   ChevronRight,
   Download,
-  Loader2,
   Target,
-  Upload,
 } from "lucide-react";
 import { ScoreRing } from "../ring";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToolForm } from "../hooks/useToolForm";
 import { extractErrorMessage } from "../utils/error";
+import { Dropzone } from  "../components/ui/DropZone";
+import { ErrorAlert, LoadingState } from "../components/ui/Feedback";
 
 const Analyze = () => {
   const queryClient = useQueryClient();
@@ -54,44 +53,17 @@ const Analyze = () => {
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
-        <div
-          {...getDropzoneProps()}
-          className={`glass-card border-dashed flex flex-col items-center justify-center gap-3 py-10 transition-all group ${
-            loading
-              ? "border-white/5 opacity-50 cursor-not-allowed"
-              : "border-white/15 cursor-pointer hover:border-indigo-500/40 hover:bg-white/2"
-          }`}
-        >
-          <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border-dashed border-indigo-500/20 flex items-center justify-center group-hover:scale-105 transition-transform">
-            <Upload size={32} className="text-indigo-400" />
-          </div>
-          <div className="text-center">
-            <p className="font-semibold text-white/80">
-              {result ? "Analyse another resume" : "Drop your resume here"}
-            </p>
-            <p className="text-white/35 text-sm mt-0.5">
-              or click to browse • PDF only • max 5MB
-            </p>
-          </div>
-          {error && (
-            <p className="text-red-400 text-sm flex items-center gap-1.5">
-              <AlertCircle size={14} /> {error}
-            </p>
-          )}
-        </div>
-
-        <input
-          type="file"
-          ref={fileRef}
-          accept=".pdf"
-          className="hidden"
-          disabled={loading}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleFileChange(f);
-            e.target.value = "";
-          }}
+    
+      <Dropzone 
+          file={file} 
+          loading={loading} 
+           fileRef={fileRef} 
+          getDropzoneProps={getDropzoneProps} 
+          handleFileChange={handleFileChange} 
         />
+
+    
+        <ErrorAlert message={error} />
 
         {!loading && (
           <button
@@ -102,14 +74,7 @@ const Analyze = () => {
           </button>
         )}
 
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 size={36} className="text-indigo-400 animate-spin" />
-            <p className="text-white/40 text-sm">
-              Analysing your resume... this takes a few seconds.
-            </p>
-          </div>
-        )}
+     {loading && <LoadingState message="Analyzing ATS Compatibility..." />}
 
         {result && !loading && (
           <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in">

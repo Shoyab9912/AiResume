@@ -9,6 +9,7 @@ import Account from "./pages/Account";
 import Home from "./pages/Home";
 import Analyze from "./pages/Analyze";
 import JobMatcher from "./pages/JobMatcher";
+import InterviewPrep from "./pages/InterviewPrep";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
            <Route path="/account" element={<Account />} />
             <Route path="/analyze" element={<Analyze />} />
             <Route path="/jobmatcher" element={<JobMatcher />} />
+            <Route path="/interviewprep" element={<InterviewPrep />} />
             
           </Route>
         </Route>

@@ -16,6 +16,15 @@ export interface JobMatchResponse {
   summary: string;
 }
 
+export interface GenerateInterviewPayload {
+  mode: "manual" | "resume";
+  round: "hr" | "technical";
+  skills?: string;
+  experience?: string;
+  pdfBase64?: string;
+}
+
+
 export const aiApi = {
   analyzeResume: async (pdfBase64: string): Promise<Analysis> => {
     const response = await api.post("/api/v1/ai/analyze", { pdfBase64 });
@@ -23,7 +32,10 @@ export const aiApi = {
   },
   matchJobs: async (payload: JobMatchPayload): Promise<JobMatchResponse> => {
     const response = await api.post("/api/v1/ai/job-matcher", payload);
-    console.log(response)
     return response.data;
+  },
+  generateInterview: async (payload: GenerateInterviewPayload) => {
+    const { data } = await api.post("/api/v1/ai/interview", payload);
+    return data; 
   },
 };

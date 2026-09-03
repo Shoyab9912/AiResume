@@ -8,7 +8,6 @@ export function useToolForm() {
   
   const fileRef = useRef<HTMLInputElement>(null);
 
-
   function handleFileChange(f: File) {
     if (f.type !== "application/pdf") {
       setError("Please upload a PDF file.");
@@ -23,14 +22,17 @@ export function useToolForm() {
     return true;
   }
 
-
-  
-  const getDropzoneProps = () => ({
-    onDragOver: (e: React.DragEvent) => e.preventDefault(),
-    onDrop: (e: React.DragEvent) => {
+ 
+  const getDropzoneProps = (): {
+    onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+    onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+    onClick: () => void;
+  } => ({
+    onDragOver: (e) => e.preventDefault(),
+    onDrop: (e) => {
       e.preventDefault();
       if (loading) return;
-      const f = e.dataTransfer.files[0];
+      const f = e.dataTransfer.files?.[0]; 
       if (f) handleFileChange(f);
     },
     onClick: () => {
