@@ -4,11 +4,13 @@ import {
   analyseResumeBodySchema,
   jobMatcherBodySchema,
   generateInterviewBodySchema,
+  buildResumeBodySchema,
 } from "../validators/resume.validator.js";
 import {
   analyzeResume,
   jobMatcher,
   generateInterview,
+  buildResume,
 } from "../controllers/ai.controller.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
 
@@ -22,4 +24,5 @@ router.post(
   validate(generateInterviewBodySchema),
   generateInterview,
 );
+
 export default router;

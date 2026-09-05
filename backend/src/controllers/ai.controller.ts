@@ -7,13 +7,12 @@ import {
   BadRequestError,
   UnauthorizedError
 } from "../utils/errors.js";
-import { z } from "zod";
 import { User } from "../models/user.model.js";
 import { GoogleGenAI,type Part } from "@google/genai";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { ResumeAnalyserPrompt,JobMatcherPrompt ,generateInterviewPrompt} from "../config/prompt.js";
-import { AnalyzeResumeBody, GenerateInterviewBody, JobMatcherBody } from "../validators/resume.validator.js";
+import { ResumeAnalyserPrompt,JobMatcherPrompt ,generateInterviewPrompt,buildResumePrompt} from "../config/prompt.js";
+import { AnalyzeResumeBody, GenerateInterviewBody, JobMatcherBody,BuildResumeBody } from "../validators/resume.validator.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY as string });
 
@@ -229,3 +228,4 @@ export const generateInterview = asyncHandler( async (req:AuthenticatedRequest,r
     );
   }
 );
+

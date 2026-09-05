@@ -1,9 +1,7 @@
-import { useState } from "react";
-import type { Analysis } from "../types";
+
 import { downloadReport } from "../utils/html-report";
 import { prioBg, prioColor, scoreBar, scoreColor } from "../utils/ui";
 import { toBase64 } from "../utils/file";
-import { aiApi } from "../api/ai";
 import {
   CheckCircle2,
   ChevronRight,
@@ -13,17 +11,15 @@ import {
 import { ScoreRing } from "../ring";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToolForm } from "../hooks/useToolForm";
+import { useAiMutations } from "../hooks/useAiMutations";
 import { extractErrorMessage } from "../utils/error";
-import { Dropzone } from  "../components/ui/DropZone";
+import { Dropzone } from "../components/ui/Dropzone";
 import { ErrorAlert, LoadingState } from "../components/ui/Feedback";
 
 const Analyze = () => {
   const queryClient = useQueryClient();
-  const [result, setResult] = useState<Analysis | null>(null);
   const {
     file,
-    loading,
-    setLoading,
     error,
     setError,
     fileRef,
@@ -31,41 +27,39 @@ const Analyze = () => {
     getDropzoneProps,
   } = useToolForm();
 
+  const { analyzeResumeMutation } = useAiMutations();
+  const { mutate, data: result, isPending, reset } = analyzeResumeMutation;
+
   async function handleSubmit() {
     setError("");
-    setResult(null);
+    reset();
 
     if (!file) return setError("Please upload your resume PDF.");
 
-    setLoading(true);
-    try {
-      const pdfBase64 = await toBase64(file);
-      const data = await aiApi.analyzeResume(pdfBase64);
-      setResult(data);
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
-    } catch (err: unknown) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setLoading(false);
-    }
+    const pdfBase64 = await toBase64(file);
+    mutate(pdfBase64, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      },
+      onError: (err) => setError(extractErrorMessage(err)),
+    });
   }
 
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
-    
-      <Dropzone 
-          file={file} 
-          loading={loading} 
-           fileRef={fileRef} 
-          getDropzoneProps={getDropzoneProps} 
-          handleFileChange={handleFileChange} 
+
+        <Dropzone
+          file={file}
+          loading={isPending}
+          fileRef={fileRef}
+          getDropzoneProps={() => getDropzoneProps(isPending)}
+          handleFileChange={handleFileChange}
         />
 
-    
         <ErrorAlert message={error} />
 
-        {!loading && (
+        {!isPending && (
           <button
             onClick={handleSubmit}
             className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
@@ -74,9 +68,9 @@ const Analyze = () => {
           </button>
         )}
 
-     {loading && <LoadingState message="Analyzing ATS Compatibility..." />}
+        {isPending && <LoadingState message="Analyzing ATS Compatibility..." />}
 
-        {result && !loading && (
+        {result && !isPending && (
           <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in">
             <div className="relative flex items-center justify-center shrink-0">
               <ScoreRing score={result.atsScore} />

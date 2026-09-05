@@ -98,15 +98,16 @@ export interface Education {
   school: string;
   location: string;
   year: string;
-  gpa: string;
+  gpa?: string;
 }
 
 export interface Project {
   name: string;
   description: string;
-  link: string;
+  link?: string;
 }
 
+// --- AI Generated Output Interfaces ---
 export interface ResumeData {
   name: string;
   email: string;
@@ -114,15 +115,61 @@ export interface ResumeData {
   location: string;
   linkedin: string;
   summary: string;
-  experience: Experience[];
+  experience: Experience[]; 
   education: Education[];
-  skills: { 
-    technical: string[]; 
-    soft: string[]; 
+  skills: {
+    technical: string[];
+    soft: string[];
   };
   projects: Project[];
   certifications: string[];
 }
+
+export interface JobMatchResponse {
+  jobs: Job[]; 
+  summary: string;
+}
+
+// --- API Payload Interfaces ---
+export interface JobMatchPayload {
+  mode: "manual" | "resume";
+  skills?: string[];      
+  experience?: string;    
+  pdfBase64?: string;      
+}
+
+export interface GenerateInterviewPayload {
+  mode: "manual" | "resume";
+  round: "hr" | "technical";
+  skills?: string;
+  experience?: string;
+  pdfBase64?: string;
+}
+
+export interface ResumeFormData {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin: string;
+  summary: string;
+  experience?: Experience[];
+  education: Education[];
+  skills: {
+    technical: string[];
+    soft: string[];
+  };
+  projects?: Project[];
+  certifications?: string[];  
+}
+
+export interface BuildResumePayload {
+  mode: "manual" | "improve";
+  formData?: ResumeFormData; 
+  pdfBase64?: string;
+}
+
+
 
 // ── 6. FEATURE: RESUME ANALYZER & ATS SCORE ──
 

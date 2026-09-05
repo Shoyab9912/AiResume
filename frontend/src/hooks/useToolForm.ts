@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
 
 export function useToolForm() {
-  const [mode, setMode] = useState<"manual" | "resume">("manual");
+  const [mode, setMode] = useState<"manual" | "resume" | "improve">("manual");
   const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState("");
   
   const fileRef = useRef<HTMLInputElement>(null);
@@ -23,7 +23,7 @@ export function useToolForm() {
   }
 
  
-  const getDropzoneProps = (): {
+  const getDropzoneProps = (loading=false): {
     onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
     onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
     onClick: () => void;
@@ -46,8 +46,6 @@ export function useToolForm() {
     setMode,
     file,
     setFile,
-    loading,
-    setLoading,
     error,
     setError,
     fileRef,

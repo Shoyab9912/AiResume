@@ -38,6 +38,9 @@ export const generateInterviewBodySchema = z.object({
   pdfBase64: analyseResumeBodySchema.shape.pdfBase64.optional()
 });
 
+
+
+
 export type AnalyzeResumeBody = z.infer<typeof analyseResumeBodySchema>;
 export type JobMatcherBody = z.infer<typeof jobMatcherBodySchema>;
 export type GenerateInterviewBody = z.infer<typeof generateInterviewBodySchema>;

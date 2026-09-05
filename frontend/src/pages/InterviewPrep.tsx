@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Code2, Download, Lightbulb, Users } from "lucide-react";
-import type { InterviewData, Question } from "../types";
-import {  toBase64 } from "../utils/file";
+import type { Question } from "../types";
+import { toBase64 } from "../utils/file";
 import { downloadInterview } from "../utils/resume";
 import { extractErrorMessage } from "../utils/error";
 import { useToolForm } from "../hooks/useToolForm";
-import { aiApi } from "../api/ai";
+import { useAiMutations } from "../hooks/useAiMutations";
+import type { InterviewPayload } from "../hooks/useAiMutations";
 import { InterviewManualInputForm } from "../components/InterviewManualInputForm";
-import { Dropzone } from "../components/ui/DropZone";
+import { Dropzone } from "../components/ui/Dropzone";
 import { ErrorAlert, LoadingState } from "../components/ui/Feedback";
 
 function QCard({ q }: { q: Question }) {
@@ -50,8 +51,6 @@ const InterviewPrep = () => {
     mode,
     setMode,
     file,
-    loading,
-    setLoading,
     error,
     setError,
     fileRef,
@@ -60,11 +59,13 @@ const InterviewPrep = () => {
   } = useToolForm();
 
   const [round, setRound] = useState<"hr" | "technical">("hr");
-  const [result, setResult] = useState<InterviewData | null>(null);
+
+  const { interviewMutation } = useAiMutations();
+  const { mutate, data: result, isPending, reset } = interviewMutation;
 
   async function handleSubmit(submittedSkills?: string, submittedExperience?: string) {
     setError("");
-    setResult(null);
+    reset();
 
     if (mode === "manual" && (!submittedSkills?.trim() || !submittedExperience?.trim())) {
       return setError("Please add your skills and experience.");
@@ -73,38 +74,30 @@ const InterviewPrep = () => {
       return setError("Please upload your resume PDF.");
     }
 
-    setLoading(true);
-    try {
-      const payload: any = { mode, round };
-      
-      if (mode === "manual") {
-        payload.skills = submittedSkills;
-        payload.experience = submittedExperience;
-      } else {
-        payload.pdfBase64 = await toBase64(file!);
-      }
+    const payload: InterviewPayload =
+      mode === "manual"
+        ? { mode: "manual", round, skills: submittedSkills!, experience: submittedExperience! }
+        : { mode: "resume", round, pdfBase64: await toBase64(file!) };
 
-      const data = await aiApi.generateInterview(payload);
-      setResult(data);
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
-    } catch (err: unknown) {
-      setError(extractErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
+    mutate(payload, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      },
+      onError: (err) => setError(extractErrorMessage(err)),
+    });
   }
 
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
-        
+
         <div className="glass-card p-1.5 flex gap-1.5">
           {(["manual", "resume"] as const).map((m) => (
             <button
               key={m}
               onClick={() => {
                 setMode(m);
-                setResult(null);
+                reset();
                 setError("");
               }}
               className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 capitalize ${
@@ -125,7 +118,7 @@ const InterviewPrep = () => {
               key={key}
               onClick={() => {
                 setRound(key as "hr" | "technical");
-                setResult(null);
+                reset();
               }}
               className={`flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 ${
                 round === key ? "btn-primary" : "text-white/40 hover:text-white/70"
@@ -139,18 +132,18 @@ const InterviewPrep = () => {
         {mode === "manual" && <InterviewManualInputForm onSubmit={handleSubmit} />}
 
         {mode === "resume" && (
-          <Dropzone 
-            file={file} 
-            loading={loading} 
-            fileRef={fileRef} 
-            getDropzoneProps={getDropzoneProps} 
-            handleFileChange={handleFileChange} 
+          <Dropzone
+            file={file}
+            loading={isPending}
+            fileRef={fileRef}
+           getDropzoneProps={() => getDropzoneProps(isPending)}
+            handleFileChange={handleFileChange}
           />
         )}
 
         <ErrorAlert message={error} />
 
-        {mode === "resume" && !loading && (
+        {mode === "resume" && !isPending && (
           <button
             onClick={() => handleSubmit()}
             className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
@@ -159,9 +152,9 @@ const InterviewPrep = () => {
           </button>
         )}
 
-        {loading && <LoadingState message="Getting Interview Questions..." />}
+        {isPending && <LoadingState message="Getting Interview Questions..." />}
 
-        {result && !loading && (
+        {result && !isPending && (
           <div className="flex flex-col gap-4 animate-fade-in">
             <div className="glass-card p-5 flex items-center justify-between flex-wrap gap-3">
               <div>
