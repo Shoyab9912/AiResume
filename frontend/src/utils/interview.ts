@@ -18,10 +18,11 @@ export function generateResumePDF(r: ResumeData) {
       .line(ml, y + 1, ml + tw, y + 1);
     y += 6;
   };
+
   const addText = (
     text: string,
     size: number,
-    style: "normal" | "bold",
+    style: "normal" | "bold" | "italic",
     color: [number, number, number],
     indent = 0,
     maxWidth?: number
@@ -34,9 +35,11 @@ export function generateResumePDF(r: ResumeData) {
     doc.text(lines, ml + indent, y);
     y += lines.length * (size * 0.45) + 1;
   };
+
   const gap = (n = 3) => {
     y += n;
   };
+
   const checkPage = (needed = 12) => {
     if (y + needed > 280) {
       doc.addPage();
@@ -47,6 +50,7 @@ export function generateResumePDF(r: ResumeData) {
   doc.setFontSize(20).setFont("helvetica", "bold").setTextColor(26, 26, 26);
   doc.text(r.name, ml, y);
   y += 7;
+  
   const contacts = [r.email, r.phone, r.location, r.linkedin]
     .filter(Boolean)
     .join("  •  ");
@@ -77,7 +81,8 @@ export function generateResumePDF(r: ResumeData) {
       const dateText = `${e.startDate} – ${e.endDate}`;
       doc.text(dateText, W - mr - doc.getTextWidth(dateText), y);
       y += 5;
-      e.bullets.filter(Boolean).forEach((b) => {
+      
+      e.bullets?.filter(Boolean).forEach((b) => {
         checkPage(6);
         addText(`• ${b}`, 8.5, "normal", [55, 65, 81], 3, tw - 3);
       });
@@ -85,22 +90,31 @@ export function generateResumePDF(r: ResumeData) {
     });
   }
 
+  
   if (r.education?.length) {
     heading("Education");
     r.education.forEach((e) => {
-      checkPage(10);
+      checkPage(12);
+      
+      
       doc.setFontSize(10).setFont("helvetica", "bold").setTextColor(26, 26, 26);
-      doc.text(
-        `${e.degree}  ·  ${e.school}${e.location ? `, ${e.location}` : ""}`,
-        ml,
-        y
-      );
-      const yr = `${e.year}${e.gpa ? `  ·  GPA ${e.gpa}` : ""}`;
-      doc
-        .setFontSize(8)
-        .setFont("helvetica", "normal")
-        .setTextColor(130, 130, 130);
-      doc.text(yr, W - mr - doc.getTextWidth(yr), y);
+      doc.text(e.degree || "", ml, y);
+      
+      if (e.year) {
+        doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(130, 130, 130);
+        doc.text(e.year, W - mr - doc.getTextWidth(e.year), y);
+      }
+      y += 4.5;
+      
+      doc.setFontSize(9).setFont("helvetica", "italic").setTextColor(55, 65, 81);
+      const schoolText = `${e.school || ""}${e.location ? `, ${e.location}` : ""}`;
+      doc.text(schoolText, ml, y);
+      
+      if (e.gpa) {
+        doc.setFont("helvetica", "bold").setTextColor(55, 65, 81);
+        const gpaText = `GPA: ${e.gpa}`;
+        doc.text(gpaText, W - mr - doc.getTextWidth(gpaText), y);
+      }
       y += 6;
     });
     gap();
@@ -129,21 +143,29 @@ export function generateResumePDF(r: ResumeData) {
     gap();
   }
 
+ 
+   
   if (r.projects?.length) {
     heading("Projects");
     r.projects.forEach((p) => {
       checkPage(12);
+      
+    
       doc.setFontSize(10).setFont("helvetica", "bold").setTextColor(26, 26, 26);
-      doc.text(p.name, ml, y);
+      doc.text(p.name || "", ml, y);
+      
       if (p.link) {
-        doc
-          .setFontSize(8)
-          .setFont("helvetica", "normal")
-          .setTextColor(99, 102, 241);
-        doc.text(`  ${p.link}`, ml + doc.getTextWidth(p.name), y);
+        doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(99, 102, 241);
+        const linkWidth = doc.getTextWidth(p.link);
+        doc.text(p.link, W - mr - linkWidth, y); 
       }
       y += 5;
-      addText(p.description, 8.5, "normal", [55, 65, 81], 0, tw);
+      
+    
+      p.bullets?.filter(Boolean).forEach((b) => {
+        checkPage(6);
+        addText(`• ${b}`, 8.5, "normal", [55, 65, 81], 3, tw - 3);
+      });
       gap(2);
     });
   }

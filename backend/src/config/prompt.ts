@@ -1,3 +1,5 @@
+import { ResumeFormData } from "../validators/resume.validator.js";
+
 export const ResumeAnalyserPrompt = `
 You are an expert ATS (Applicant Tracking System) analyzer. Analyze the following resume
 and provide:
@@ -68,7 +70,8 @@ Respond ONLY in valid JSON with this exact structure:
 }
 `;
 
-export const buildResumePrompt = (mode: string, formData?: any) => `
+
+export const buildResumePrompt = (mode: string, formData?: ResumeFormData) => `
 You are an expert resume writer and ATS optimization specialist.
 ${
   mode === "manual"
@@ -76,9 +79,9 @@ ${
 ${JSON.stringify(formData, null, 2)}`
     : "Extract all information from the attached resume and rewrite it to be highly ATS-optimized, professional, and impactful."
 }
- 
+
 Return ONLY valid JSON with this exact structure:
-{
+ {
   "name": "Full Name",
   "email": "email@example.com",
   "phone": "phone number",
@@ -112,22 +115,27 @@ Return ONLY valid JSON with this exact structure:
     "soft": ["skill1", "skill2"]
   },
   "projects": [
-    {
-      "name": "Project Name",
-      "description": "2-3 sentence ATS-optimized description with technologies used and impact",
-      "link": "project link or empty string"
-    }
-  ],
+  {
+    "name": "Project Name",
+    "link": "project link or empty string",
+    "bullets": [
+      "Action-driven bullet point explaining the technology used",
+      "Result-driven bullet point explaining the impact"
+    ]
+  }
+],
   "certifications": ["Certification 1", "Certification 2"]
-}
- 
+}.
+
 ATS Rules to follow:
-- Use standard section headings
-- Include relevant keywords naturally
-- Start each bullet with a strong action verb
-- Quantify achievements wherever possible
-- Keep language clean, no tables or special characters
-- If any field has no data, use empty array or empty string
+- Use standard section headings.
+- Include relevant keywords naturally.
+- Start each bullet with a strong action verb.
+- Quantify achievements wherever possible.
+- Keep language clean, no tables or special characters.
+- CRITICAL FOR FRESHERS: If the provided data has no work experience, return an empty array [] for the "experience" field. DO NOT hallucinate, invent, or use placeholder jobs.
+- If the user lacks work experience, ensure their "projects" and "education" descriptions are highly detailed and impactful to compensate.
+- If any other field has no data, use an empty array or empty string.
 `;
 
 export const generateInterviewPrompt = (

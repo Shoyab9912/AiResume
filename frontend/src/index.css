@@ -5,13 +5,14 @@
     @apply box-border m-0 p-0;
   }
   body {
-    font-family: "DM Sans", sans-serif;
-    @apply bg-[#080b14] text-white antialiased;
+    font-family: "Space Grotesk", sans-serif;
+    @apply bg-[#050505] text-[#ededed] antialiased;
   }
   h1,
   h2,
   h3 {
-    font-family: "Syne", sans-serif;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
   }
   html {
     scroll-behavior: smooth;
@@ -19,104 +20,82 @@
 }
 
 @layer components {
-  /* ── Page background ── */
   .bg-page {
-    @apply min-h-screen bg-[#080b14] relative;
-    background-image: radial-gradient(
-        ellipse 80% 60% at 50% -10%,
-        rgba(99, 102, 241, 0.18) 0%,
-        transparent 70%
-      ),
-      radial-gradient(
-        ellipse 50% 40% at 80% 80%,
-        rgba(16, 185, 129, 0.1) 0%,
-        transparent 60%
-      ),
-      radial-gradient(
-        ellipse 40% 30% at 10% 70%,
-        rgba(139, 92, 246, 0.1) 0%,
-        transparent 60%
-      );
+    @apply min-h-screen bg-[#050505] relative z-0;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
 
-  /* ── Glass card ── */
   .glass-card {
-    @apply bg-white/4 border border-white/8 rounded-2xl backdrop-blur-xl;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-      0 32px 64px rgba(0, 0, 0, 0.4);
+    @apply bg-[#0c0c0c] border-2 border-[#1a1a1a] rounded-none;
+    box-shadow: 8px 8px 0px #111111;
   }
 
-  /* ── Primary CTA button ── */
   .btn-primary {
-    @apply bg-linear-to-r from-indigo-500 to-emerald-400
-           text-white font-semibold cursor-pointer
-           hover:opacity-90 active:opacity-80
-           transition-all duration-200;
-    box-shadow: 0 4px 24px rgba(99, 102, 241, 0.35);
+    @apply bg-[#00e5ff] text-black font-bold cursor-pointer rounded-none
+           hover:-translate-y-1 hover:translate-x-1 active:translate-y-0 active:translate-x-0
+           transition-transform duration-200 border-2 border-transparent 
+           hover:border-[#00e5ff] hover:bg-[#050505] hover:text-[#00e5ff];
+    box-shadow: -4px 4px 0px rgba(0, 229, 255, 0.15);
   }
 
-  /* ── Google login button ── */
   .btn-google {
     @apply flex items-center justify-center gap-3 w-full px-6 py-3.5
-           bg-white/6 hover:bg-white/10 active:bg-white/4
-           border border-white/12 hover:border-white/22
-           rounded-xl text-white font-medium text-[15px] tracking-wide
+           bg-transparent hover:bg-[#111] active:bg-[#0a0a0a]
+           border-2 border-[#333] hover:border-[#666]
+           rounded-none text-white font-mono text-[13px] uppercase tracking-widest
            transition-all duration-200 cursor-pointer select-none;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
   }
 
-  /* ── Gradient text ── */
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #a5b4fc 0%, #6ee7b7 100%);
+    background-image: linear-gradient(90deg, #00e5ff 0%, #0055ff 100%);
   }
 
-  /* ── Divider ── */
   .divider-subtle {
-    @apply border-t border-white/6 w-full;
+    @apply border-t-2 border-dashed border-[#1a1a1a] w-full;
   }
 
-  /* ── Background orb blobs ── */
   .orb {
-    @apply absolute rounded-full pointer-events-none blur-3xl opacity-20;
+    @apply hidden;
   }
 
-  /* ── Small badge pills ── */
   .feature-pill {
-    @apply flex items-center gap-1.5 text-xs text-white/40 bg-white/4
-           border border-white/[0.07] rounded-full px-3 py-1;
+    @apply flex items-center gap-2 text-xs font-mono text-[#00e5ff] bg-[#00e5ff]/10
+           border-2 border-[#00e5ff]/30 rounded-none px-3 py-1 uppercase tracking-wider;
   }
 
-  /* ── Form input ── */
   .input-field {
-    @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5
-           text-sm text-white placeholder:text-white/25 outline-none
-           focus:border-indigo-500/50 transition-colors;
+    @apply w-full bg-[#050505] border-2 border-[#1a1a1a] rounded-none px-4 py-3
+           text-sm text-white placeholder:text-zinc-600 outline-none
+           focus:border-[#00e5ff] focus:bg-[#0a0a0a] transition-colors duration-150;
   }
 }
 
-/* ── Animations ── */
 @keyframes fadeIn {
-  from {
+  0% {
     opacity: 0;
+    filter: grayscale(100%) blur(4px);
   }
-  to {
+  100% {
     opacity: 1;
+    filter: grayscale(0%) blur(0);
   }
 }
 @keyframes slideUp {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(12px) scale(0.99);
   }
-  to {
+  100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 .animate-fade-in {
-  animation: fadeIn 0.6s ease both;
+  animation: fadeIn 0.4s ease-out forwards;
 }
 .animate-slide-up {
-  animation: slideUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: slideUp 0.5s cubic-bezier(0, 0.7, 0.1, 1) forwards;
 }

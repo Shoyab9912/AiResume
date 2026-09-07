@@ -229,3 +229,74 @@ export const generateInterview = asyncHandler( async (req:AuthenticatedRequest,r
   }
 );
 
+
+
+export const buildResume = asyncHandler(
+  async (req: AuthenticatedRequest, res) => {
+    
+    const data = req.body as BuildResumeBody;
+
+    if (data.mode === "manual" && !data.formData) {
+      throw new BadRequestError("Form data is required for manual mode");
+    }
+
+    if (data.mode === "improve" && !data.pdfBase64) {
+      throw new BadRequestError("PDF is required for improve mode");
+    }
+    const user = await User.findById(req.user?._id);
+
+    if (!user) {
+      throw new UnauthorizedError("User session is invalid or expired");
+    }
+
+    if (!user.canMakeRequest()) {
+      throw new ForbiddenError("Upgrade Your plan to continue");
+    }
+
+ 
+    const parts: Part[] = [
+      { text: buildResumePrompt(data.mode, data.formData) }
+    ];
+
+    if (data.mode === "improve" && data.pdfBase64) {
+      parts.push({
+        inlineData: {
+          mimeType: "application/pdf",
+          data: data.pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
+        },
+      });
+    }
+
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3.6-flash", 
+      contents: [{ role: "user", parts }],
+    });
+
+    const rawText = response.text?.replace(/```json|```/g, "").trim();
+
+    if (!rawText) {
+      throw new ApiError(500,"AI returned an empty response");
+    }
+
+    let jsonResponse: Record<string, any>;
+    try {
+      jsonResponse = JSON.parse(rawText);
+    } catch (error) {
+      throw new ApiError(500,"AI returned invalid JSON formatting");
+    }
+
+    
+    if (!user.hasProAcess()) {
+      await User.findByIdAndUpdate(user._id, {
+        $inc: { freeRequestsUsed: 1 }
+      });
+    }
+
+    res.status(200).json(
+      new ApiResponse(200,  "Resume built successfully",jsonResponse)
+    );
+  }
+);  
+
+

@@ -103,11 +103,11 @@ export interface Education {
 
 export interface Project {
   name: string;
-  description: string;
   link?: string;
+  bullets: string[];
 }
 
-// --- AI Generated Output Interfaces ---
+
 export interface ResumeData {
   name: string;
   email: string;

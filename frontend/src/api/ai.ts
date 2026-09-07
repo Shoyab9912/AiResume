@@ -4,6 +4,8 @@ import type {
   GenerateInterviewPayload,
   JobMatchPayload,
   JobMatchResponse,
+  BuildResumePayload,
+  ResumeData
 } from "../types";
 
 export const aiApi = {
@@ -19,5 +21,8 @@ export const aiApi = {
     const { data } = await api.post("/ai/interview", payload);
     return data;
   },
- 
+  buildResume: async (payload: BuildResumePayload): Promise<ResumeData> => {
+    const { data } = await api.post("/ai/build-resume", payload);
+    return data;
+  },
 };

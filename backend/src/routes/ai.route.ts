@@ -24,5 +24,7 @@ router.post(
   validate(generateInterviewBodySchema),
   generateInterview,
 );
+router.post("/build-resume",validate(buildResumeBodySchema),buildResume)
+
 
 export default router;

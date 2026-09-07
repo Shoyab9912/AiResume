@@ -6,8 +6,6 @@ import { authApi } from "../api/auth";
 import type { LoginPayload, RegisterPayload, User, ApiResponse,ApiError } from "../types";
 
 
-
-
 export const useAuthMutations = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -23,21 +21,18 @@ export const useAuthMutations = () => {
     toast.error(message);
   };
 
-  // 1. Login Mutation
   const loginMutation = useMutation({
     mutationFn: (payload: LoginPayload) => authApi.login(payload),
     onSuccess: handleSuccess,
     onError: handleError,
   });
 
-  // 2. Register Mutation
   const registerMutation = useMutation({
     mutationFn: (payload: RegisterPayload) => authApi.register(payload),
     onSuccess: handleSuccess,
     onError: handleError,
   });
 
-  // 3. Google Auth Mutation
   const googleMutation = useMutation({
     mutationFn: (credential: string) => authApi.googleAuth(credential),
     onSuccess: handleSuccess,
