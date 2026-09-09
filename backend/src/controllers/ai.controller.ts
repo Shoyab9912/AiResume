@@ -1,302 +1,197 @@
 import { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
-
 import {
   ForbiddenError,
   ValidationError,
   BadRequestError,
-  UnauthorizedError
+  UnauthorizedError,
 } from "../utils/errors.js";
 import { User } from "../models/user.model.js";
-import { GoogleGenAI,type Part } from "@google/genai";
+import { GoogleGenAI, type Part } from "@google/genai";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { ResumeAnalyserPrompt,JobMatcherPrompt ,generateInterviewPrompt,buildResumePrompt} from "../config/prompt.js";
-import { AnalyzeResumeBody, GenerateInterviewBody, JobMatcherBody,BuildResumeBody } from "../validators/resume.validator.js";
+import {
+  ResumeAnalyserSystemInstruction,
+  ResumeAnalyserUserPrompt,
+  JobMatcherSystemInstruction,
+  JobMatcherUserPrompt,
+  InterviewSystemInstruction,
+  InterviewUserPrompt,
+  BuildResumeSystemInstruction,
+  BuildResumeUserPrompt,
+} from "../config/prompt.js";
+import {
+  AnalyzeResumeBody,
+  GenerateInterviewBody,
+  JobMatcherBody,
+  BuildResumeBody,
+} from "../validators/resume.validator.js";
+import {
+  ResumeAnalysisSchema,
+  JobMatchSchema,
+  InterviewSchema,
+  BuiltResumeSchema,
+} from "../validators/ai-response.validator.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY as string });
+const MODEL = "gemini-3.6-flash";
 
-export const analyzeResume = asyncHandler(
-  async (req: AuthenticatedRequest, res) => {
-     const { pdfBase64 } = req.body as AnalyzeResumeBody;
-
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    if (!user.canMakeRequest()) {
-      throw new ForbiddenError("Upgrade Your plan to continue");
-    }
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: ResumeAnalyserPrompt },
-            {
-              inlineData: {
-                mimeType: "application/pdf",
-                data: pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    const rawText = response.text?.replace(/```json|```/g, "").trim();
-
-    if (!rawText) {
-      throw new ApiError(500, "AI returned empty response");
-    }
-
-    let jsonResponse;
-    try {
-      jsonResponse = JSON.parse(rawText);
-    } catch (error) {
-      throw new ApiError(500, "AI returned invalid JSON", [], {
-        raw: response.text,
-      });
-    }
-
-    if (!user.hasProAcess()) {
-      await User.findByIdAndUpdate(user._id, {
-        $inc: {
-          freeRequestsUsed: 1,
-        },
-      });
-    }
-
-    return res
-      .status(200)
-      .json(new ApiResponse(200, "Resume analyzed successfully", jsonResponse));
-  },
-);
-
-export const jobMatcher = asyncHandler(
-  async (req: AuthenticatedRequest, res) => {
-     const data = req.body as JobMatcherBody;
-
-    if (
-      data.mode === "manual" &&
-      (!data.skills?.length || !data.experience?.trim())
-    ) {
-      throw new BadRequestError(
-        "Skills and experience are required for manual mode",
-      );
-    }
-
-    if (data.mode === "resume" && !data.pdfBase64) {
-      throw new BadRequestError("PDF is required for resume mode");
-    }
-
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    if (!user.canMakeRequest()) {
-      throw new ForbiddenError("Upgrade Your plan to continue");
-    }
-
-    const parts: Part[] = [
-    { 
-      text: JobMatcherPrompt(data.mode, data.skills || [], data.experience || "") 
-    }
-  ];
-
-  if (data.mode === "resume" && data.pdfBase64) {
+function stripPdfPrefix(b64: string) {
+  return b64.replace(/^data:application\/pdf;base64,/, "");
+}
+async function callModel(systemInstruction: string, userText: string, pdfBase64?: string) {
+  const parts: Part[] = [{ text: userText }];
+  if (pdfBase64) {
     parts.push({
-      inlineData: {
-        mimeType: "application/pdf",
-         data:data.pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
-      },
+      inlineData: { mimeType: "application/pdf", data: stripPdfPrefix(pdfBase64) },
     });
   }
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.6-flash",
-    contents: [{ role: "user", parts }],
-  });
-
-  
-  const rawText = response.text?.replace(/```json|```/g, "").trim();
-
-    if (!rawText) {
-      throw new ApiError(500, "AI returned empty response");
-    }
- 
-
-  let jsonResponse;
+  let response;
   try {
-    jsonResponse = JSON.parse(rawText);
-  } catch (error) {
-    throw new ApiError(500,"AI returned invalid JSON formatting");
-  }
-
-  if (!user.hasProAcess()) {
-    await User.findByIdAndUpdate(user._id, {
-      $inc: { freeRequestsUsed: 1 }
-    });
-  }
-
-
-  return res.status(200).json(new ApiResponse(200,"jobs fetched successfully",jsonResponse));
-
-  },
-);
-
-
-export const generateInterview = asyncHandler( async (req:AuthenticatedRequest,res,next) => {
-    const data = req.body as GenerateInterviewBody;
-
-  
-    if (data.mode === "manual" && (!data.skills?.trim() || !data.experience?.trim())) {
-      throw new BadRequestError("Skills and experience are required for manual mode");
-    }
-
-    if (data.mode === "resume" && !data.pdfBase64) {
-      throw new BadRequestError("PDF is required for resume mode");
-    }
-
-    const user = await User.findById(req.user?._id);
-    
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-    
-    if (!user.canMakeRequest()) {
-      throw new ForbiddenError("Upgrade Your plan to continue");
-    }
-
-   
-    const parts: Part[] = [
-      { 
-        text: generateInterviewPrompt(
-          data.round, 
-          data.mode, 
-          data.skills || "", 
-          data.experience || ""
-        ) 
-      }
-    ];
-
-    if (data.mode === "resume" && data.pdfBase64) {
-      parts.push({
-        inlineData: {
-          mimeType: "application/pdf",
-          data: data.pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
-        },
-      });
-    }
-
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+    response = await ai.models.generateContent({
+      model: MODEL,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+      },
       contents: [{ role: "user", parts }],
     });
-
-   
-    const rawText = response.text?.replace(/```json|```/g, "").trim();
-
-    if (!rawText) {
-      throw new ApiError(500,"AI returned an empty response");
-    }
-
-    let jsonResponse: Record<string, any>;
-    try {
-      jsonResponse = JSON.parse(rawText);
-    } catch (error) {
-      throw new ApiError(500,"AI returned invalid JSON formatting");
-    }
-
-   
-    if (!user.hasProAcess()) {
-      await User.findByIdAndUpdate(user._id, {
-        $inc: { freeRequestsUsed: 1 }
-      });
-    }
-
-    
-   return res.status(200).json(
-      new ApiResponse(200,"Interview questions generated successfully",jsonResponse)
-    );
+  } catch (err) {
+    throw mapGeminiError(err);
   }
-);
 
+  const rawText = response.text?.trim();
+  if (!rawText) throw new ApiError(502, "AI returned empty response");
 
-
-export const buildResume = asyncHandler(
-  async (req: AuthenticatedRequest, res) => {
-    
-    const data = req.body as BuildResumeBody;
-
-    if (data.mode === "manual" && !data.formData) {
-      throw new BadRequestError("Form data is required for manual mode");
-    }
-
-    if (data.mode === "improve" && !data.pdfBase64) {
-      throw new BadRequestError("PDF is required for improve mode");
-    }
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    if (!user.canMakeRequest()) {
-      throw new ForbiddenError("Upgrade Your plan to continue");
-    }
-
- 
-    const parts: Part[] = [
-      { text: buildResumePrompt(data.mode, data.formData) }
-    ];
-
-    if (data.mode === "improve" && data.pdfBase64) {
-      parts.push({
-        inlineData: {
-          mimeType: "application/pdf",
-          data: data.pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
-        },
-      });
-    }
-
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash", 
-      contents: [{ role: "user", parts }],
-    });
-
-    const rawText = response.text?.replace(/```json|```/g, "").trim();
-
-    if (!rawText) {
-      throw new ApiError(500,"AI returned an empty response");
-    }
-
-    let jsonResponse: Record<string, any>;
-    try {
-      jsonResponse = JSON.parse(rawText);
-    } catch (error) {
-      throw new ApiError(500,"AI returned invalid JSON formatting");
-    }
-
-    
-    if (!user.hasProAcess()) {
-      await User.findByIdAndUpdate(user._id, {
-        $inc: { freeRequestsUsed: 1 }
-      });
-    }
-
-    res.status(200).json(
-      new ApiResponse(200,  "Resume built successfully",jsonResponse)
-    );
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    throw new ApiError(502, "AI returned invalid JSON", [], { raw: response.text });
   }
-);  
+}
 
+function mapGeminiError(err: unknown): ApiError {
+  const raw = err instanceof Error ? err.message : String(err);
 
+  let code: number | undefined;
+  let status: string | undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    code = parsed?.error?.code;
+    status = parsed?.error?.status;
+  } catch {
+    // raw wasn't JSON, fall through with code/status undefined
+  }
+
+  if (code === 503 || status === "UNAVAILABLE") {
+    return new ApiError(503, "AI service is currently busy. Please try again in a moment.");
+  }
+  if (code === 429 || status === "RESOURCE_EXHAUSTED") {
+    return new ApiError(429, "Too many requests right now. Please try again shortly.");
+  }
+  if (code === 400 || status === "INVALID_ARGUMENT") {
+    return new ApiError(400, "The uploaded file could not be processed. Please check the file and try again.");
+  }
+
+  return new ApiError(502, "AI service failed to respond. Please try again.");
+}
+
+async function incrementUsageIfFree(userId: string, hasProAcess: boolean) {
+  if (!hasProAcess) {
+    await User.findByIdAndUpdate(userId, { $inc: { freeRequestsUsed: 1 } });
+  }
+}
+
+export const analyzeResume = asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { pdfBase64 } = req.body as AnalyzeResumeBody;
+
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new UnauthorizedError("User session is invalid or expired");
+  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+
+  const parsed = await callModel(ResumeAnalyserSystemInstruction, ResumeAnalyserUserPrompt, pdfBase64);
+
+  const result = ResumeAnalysisSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
+  }
+
+  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+
+  return res.status(200).json(new ApiResponse(200, "Resume analyzed successfully", result.data));
+});
+
+export const jobMatcher = asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const data = req.body as JobMatcherBody;
+
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new UnauthorizedError("User session is invalid or expired");
+  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+
+  const userPrompt = JobMatcherUserPrompt(data.mode, data.skills, data.experience);
+  const parsed = await callModel(
+    JobMatcherSystemInstruction,
+    userPrompt,
+    data.mode === "resume" ? data.pdfBase64 : undefined,
+  );
+
+  const result = JobMatchSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
+  }
+
+  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+
+  return res.status(200).json(new ApiResponse(200, "jobs fetched successfully", result.data));
+});
+
+export const generateInterview = asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const data = req.body as GenerateInterviewBody;
+
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new UnauthorizedError("User session is invalid or expired");
+  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+
+  const userPrompt = InterviewUserPrompt(data.mode, data.skills, data.experience);
+  const parsed = await callModel(
+    InterviewSystemInstruction(data.round),
+    userPrompt,
+    data.mode === "resume" ? data.pdfBase64 : undefined,
+  );
+
+  const result = InterviewSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
+  }
+
+  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Interview questions generated successfully", result.data));
+});
+
+export const buildResume = asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const data = req.body as BuildResumeBody;
+
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new UnauthorizedError("User session is invalid or expired");
+  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+
+  const userPrompt = BuildResumeUserPrompt(data.mode, data.formData);
+  const parsed = await callModel(
+    BuildResumeSystemInstruction(data.mode),
+    userPrompt,
+    data.mode === "improve" ? data.pdfBase64 : undefined,
+  );
+
+  const result = BuiltResumeSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
+  }
+
+  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+
+  res.status(200).json(new ApiResponse(200, "Resume built successfully", result.data));
+});
