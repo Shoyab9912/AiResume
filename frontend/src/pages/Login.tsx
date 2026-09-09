@@ -6,20 +6,17 @@ import { z } from "zod";
 import { type ApiError } from "../types";
 import { useAuthMutations } from "../hooks/useAuthMutations";
 import { Input } from "../components/ui/Input";
-
+import { Hexagon } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.email( "Invalid email address" ),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  // 1. Bring in our API mutations
   const { loginMutation, googleMutation } = useAuthMutations();
-
-  // 2. Setup React Hook Form
   const {
     register,
     handleSubmit,
@@ -30,26 +27,24 @@ const Login = () => {
   });
 
   const onSubmit = (data: LoginFormValues) => {
-  loginMutation.mutate(data, {
-    onError: (error: ApiError) => {
-      const backendErrors = error.response?.data?.errors;
+    loginMutation.mutate(data, {
+      onError: (error: ApiError) => {
+        const backendErrors = error.response?.data?.errors;
 
-      if (backendErrors) {
-        Object.entries(backendErrors).forEach(([field, messages]) => {
-          setError(field as keyof LoginFormValues, {
-            type: "server",
-            message: messages[0],
+        if (backendErrors) {
+          Object.entries(backendErrors).forEach(([field, messages]) => {
+            setError(field as keyof LoginFormValues, {
+              type: "server",
+              message: messages[0],
+            });
           });
-        });
-      }
-    },
-  });
-};
+        }
+      },
+    });
+  };
 
-
-
-  // Check if ANY mutation is currently loading
-  const isLoading = loginMutation.isPending || googleMutation.isPending;
+  
+  const isLoading = loginMutation.isPending 
 
   return (
     <div className="bg-page flex items-center justify-center p-4 min-h-screen">
@@ -58,15 +53,15 @@ const Login = () => {
       <div className="orb w-80 h-80 bg-emerald-500 bottom-10 right-0" />
       <div className="orb w-64 h-64 bg-violet-600 top-1/2 left-1/2 -translate-x-1/2" />
 
-      {/* Glass Card */}
+      
       <div className="glass-card w-full max-w-md p-10 flex flex-col items-center gap-8 z-10">
-        {/* Header */}
+      
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-12 h-12 rounded-xl bg-linear-to-br from-indigo-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-indigo-500/30 text-3xl">
-            📚
+          <div className="w-12 h-12 rounded-xl bg-[#00e5ff]/10 border-2 border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] shadow-lg shadow-[#00e5ff]/20">
+            <Hexagon size={26} strokeWidth={2.5} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gradient">
-            CareerAI
+            NovaForge
           </h1>
           <p className="text-white/40 text-sm leading-relaxed text-gradient">
             Welcome back to your AI-powered career co-pilot.
@@ -92,7 +87,7 @@ const Login = () => {
           <span className="text-white/30 text-xs px-2 bg-transparent">OR</span>
         </div>
 
-        {/* Email & Password Form */}
+      
         <form
           onSubmit={handleSubmit(onSubmit)}
           className="w-full flex flex-col gap-4"

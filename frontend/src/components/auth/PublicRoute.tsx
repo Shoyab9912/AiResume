@@ -1,12 +1,8 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; 
-import Loading from "../ui/Loading";
+import { useAuth } from "../../hooks/useAuth";
 
 const PublicRoute = () => {
-  const { isAuth, loading } = useAuth();
-
-  if (loading) return <Loading />;
-
+  const { isAuth } = useAuth();
 
   if (isAuth) return <Navigate to="/" replace />;
 

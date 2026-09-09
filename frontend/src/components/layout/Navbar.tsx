@@ -10,7 +10,6 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 border-b-2 border-[#1a1a1a] bg-[#050505]/90 backdrop-blur-xl">
       <Link to={"/"} className="flex items-center gap-3 group">
-
         <div className="w-8 h-8 bg-[#00e5ff]/10 border-2 border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] transition-transform duration-300 group-hover:rotate-90">
           <Hexagon size={18} strokeWidth={2.5} />
         </div>
@@ -22,7 +21,6 @@ const Navbar = () => {
           Nova<span className="text-[#00e5ff]">Forge</span>
         </span>
       </Link>
-
 
       <div className="hidden md:flex items-center gap-8 text-sm text-zinc-500 font-mono uppercase tracking-widest">
         <Link to={"/analyze"} className="hover:text-[#00e5ff] transition-colors">
@@ -45,7 +43,6 @@ const Navbar = () => {
         </Link>
       </div>
 
-    
       <div className="hidden md:flex items-center gap-4">
         {isAuth ? (
           <Link
@@ -73,20 +70,18 @@ const Navbar = () => {
               to={"/register"}
               className="btn-primary text-sm px-6 py-2.5 uppercase tracking-wider"
             >
-              System.Init()
+              Sign up
             </Link>
           </>
         )}
       </div>
 
-   
       <button
         className="md:hidden text-zinc-400 hover:text-[#00e5ff] transition-colors cursor-pointer"
         onClick={() => setOpen(!open)}
       >
         {open ? <X size={24} /> : <Menu size={24} />}
       </button>
-
       
       {open && (
         <div className="absolute top-full inset-x-0 bg-[#050505] border-b-2 border-[#1a1a1a] flex flex-col gap-4 px-6 py-6 md:hidden font-mono uppercase tracking-widest text-sm">
@@ -138,7 +133,7 @@ const Navbar = () => {
                 to={"/register"}
                 className="btn-primary text-center py-3"
               >
-                System.Init()
+                Sign up
               </Link>
             </div>
           )}

@@ -7,7 +7,8 @@ import { z } from "zod";
 import { useAuthMutations } from "../hooks/useAuthMutations";
 import { Input } from "../components/ui/Input";
 import { features } from "../utils/features";
-import {type ApiError} from "../types"
+import { type ApiError } from "../types";
+import { Hexagon } from "lucide-react";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -30,24 +31,23 @@ const Register = () => {
   });
 
   const onSubmit = (data: RegisterFormValues) => {
-  registerMutation.mutate(data, {
-    onError: (error: ApiError) => {
-      const backendErrors = error.response?.data?.errors;
+    registerMutation.mutate(data, {
+      onError: (error: ApiError) => {
+        const backendErrors = error.response?.data?.errors;
 
-      if (backendErrors) {
-        Object.entries(backendErrors).forEach(([field, messages]) => {
-          setError(field as keyof RegisterFormValues, {
-            type: "server",
-            message: messages[0],
+        if (backendErrors) {
+          Object.entries(backendErrors).forEach(([field, messages]) => {
+            setError(field as keyof RegisterFormValues, {
+              type: "server",
+              message: messages[0],
+            });
           });
-        });
-      }
-    },
-  });
-};
+        }
+      },
+    });
+  };
 
-
-  const isLoading = registerMutation.isPending
+  const isLoading = registerMutation.isPending;
 
   return (
     <div className="bg-page flex items-center justify-center p-4 min-h-screen">
@@ -57,18 +57,17 @@ const Register = () => {
 
       <div className="glass-card w-full max-w-md p-10 flex flex-col items-center gap-6 z-10">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-12 h-12 rounded-xl bg-linear-to-br from-indigo-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-indigo-500/30 text-3xl">
-            🚀
+          <div className="w-12 h-12 rounded-xl bg-[#00e5ff]/10 border-2 border-[#00e5ff]/30 flex items-center justify-center text-[#00e5ff] shadow-lg shadow-[#00e5ff]/20">
+            <Hexagon size={26} strokeWidth={2.5} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gradient">
-            Join CareerAI
+            Join NovaForge
           </h1>
           <p className="text-white/40 text-sm leading-relaxed text-gradient">
             Build, analyze, and land your next role.
           </p>
         </div>
 
-        {/* Feature Pills */}
         <div className="flex flex-wrap justify-center gap-2 mb-2">
           {features.map(({ icon: Icon, label }) => (
             <span key={label} className="feature-pill">
@@ -127,7 +126,7 @@ const Register = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2.5 rounded-lg transition-colors mt-2 disabled:opacity-50"
+            className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-lg transition-colors mt-2 disabled:opacity-50"
           >
             {registerMutation.isPending
               ? "Creating Account..."
@@ -156,7 +155,7 @@ const Register = () => {
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-emerald-400 hover:text-emerald-300 font-medium"
+            className="text-indigo-400 hover:text-indigo-300 font-medium"
           >
             Log in
           </Link>

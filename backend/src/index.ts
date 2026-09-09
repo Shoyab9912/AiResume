@@ -4,6 +4,9 @@ import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 import userRoutes from "./routes/user.route.js"
 import authRoutes from "./routes/auth.route.js"
 import aiRoutes from "./routes/ai.route.js"
+import webhookRoutes from "./routes/webhook.route.js";
+import paymentRoutes from "./routes/payment.route.js";
+
 import connect from "./config/db.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
@@ -25,6 +28,8 @@ app.use(cookieParser())
 app.use("/api/v1/users",userRoutes)
 app.use("/api/v1/auth",authRoutes)
 app.use("/api/v1/ai",aiRoutes)
+app.use("/api/v1/payment",paymentRoutes)
+app.use("/api/v1/webhooks",webhookRoutes)
 
 app.use(errorHandler)
 

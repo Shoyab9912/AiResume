@@ -15,26 +15,25 @@ import BuildResume from "./pages/BuildResume";
 function App() {
   return (
     <BrowserRouter>
-          <Routes>   
+      <Routes>
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<Home />} />
+        </Route>
+
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
         </Route>
 
-        <Route element={<MainLayout />}>
-           <Route path="/" element={<Home />} />
-        </Route>
-
-          <Route element={<ProtectedRoute />}>
+        <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-           <Route path="/account" element={<Account />} />
+            <Route path="/account" element={<Account />} />
             <Route path="/analyze" element={<Analyze />} />
             <Route path="/jobmatcher" element={<JobMatcher />} />
             <Route path="/interviewprep" element={<InterviewPrep />} />
-             <Route path="/resumebuilder" element={<BuildResume />} />
+            <Route path="/resumebuilder" element={<BuildResume />} />
           </Route>
         </Route>
-
       </Routes>
       <Footer />
     </BrowserRouter>
