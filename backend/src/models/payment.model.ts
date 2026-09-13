@@ -50,7 +50,6 @@ const paymentSchema = new Schema<IPayment>(
 
     webhookEventId: {
       type: String,
-      default: null,
       unique: true,
       sparse: true,
     },
