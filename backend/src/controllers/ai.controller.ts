@@ -39,11 +39,18 @@ const MODEL = "gemini-3.6-flash";
 function stripPdfPrefix(b64: string) {
   return b64.replace(/^data:application\/pdf;base64,/, "");
 }
-async function callModel(systemInstruction: string, userText: string, pdfBase64?: string) {
+async function callModel(
+  systemInstruction: string,
+  userText: string,
+  pdfBase64?: string,
+) {
   const parts: Part[] = [{ text: userText }];
   if (pdfBase64) {
     parts.push({
-      inlineData: { mimeType: "application/pdf", data: stripPdfPrefix(pdfBase64) },
+      inlineData: {
+        mimeType: "application/pdf",
+        data: stripPdfPrefix(pdfBase64),
+      },
     });
   }
 
@@ -67,7 +74,9 @@ async function callModel(systemInstruction: string, userText: string, pdfBase64?
   try {
     return JSON.parse(rawText);
   } catch {
-    throw new ApiError(502, "AI returned invalid JSON", [], { raw: response.text });
+    throw new ApiError(502, "AI returned invalid JSON", [], {
+      raw: response.text,
+    });
   }
 }
 
@@ -85,13 +94,22 @@ function mapGeminiError(err: unknown): ApiError {
   }
 
   if (code === 503 || status === "UNAVAILABLE") {
-    return new ApiError(503, "AI service is currently busy. Please try again in a moment.");
+    return new ApiError(
+      503,
+      "AI service is currently busy. Please try again in a moment.",
+    );
   }
   if (code === 429 || status === "RESOURCE_EXHAUSTED") {
-    return new ApiError(429, "Too many requests right now. Please try again shortly.");
+    return new ApiError(
+      429,
+      "Too many requests right now. Please try again shortly.",
+    );
   }
   if (code === 400 || status === "INVALID_ARGUMENT") {
-    return new ApiError(400, "The uploaded file could not be processed. Please check the file and try again.");
+    return new ApiError(
+      400,
+      "The uploaded file could not be processed. Please check the file and try again.",
+    );
   }
 
   return new ApiError(502, "AI service failed to respond. Please try again.");
@@ -103,95 +121,157 @@ async function incrementUsageIfFree(userId: string, hasProAcess: boolean) {
   }
 }
 
-export const analyzeResume = asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { pdfBase64 } = req.body as AnalyzeResumeBody;
+export const analyzeResume = asyncHandler(
+  async (req: AuthenticatedRequest, res) => {
+    const { pdfBase64 } = req.body as AnalyzeResumeBody;
 
-  const user = await User.findById(req.user?._id);
-  if (!user) throw new UnauthorizedError("User session is invalid or expired");
-  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+      throw new UnauthorizedError("User session is invalid or expired");
+    }
 
-  const parsed = await callModel(ResumeAnalyserSystemInstruction, ResumeAnalyserUserPrompt, pdfBase64);
+    if (!user.canMakeRequest()) {
+      throw new ForbiddenError("Upgrade Your plan to continue");
+    }
 
-  const result = ResumeAnalysisSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
-  }
+    const parsed = await callModel(
+      ResumeAnalyserSystemInstruction,
+      ResumeAnalyserUserPrompt,
+      pdfBase64,
+    );
 
-  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+    const result = ResumeAnalysisSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new ApiError(500, "AI response failed validation", [], {
+        issues: result.error.issues,
+      });
+    }
 
-  return res.status(200).json(new ApiResponse(200, "Resume analyzed successfully", result.data));
-});
+    await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
 
-export const jobMatcher = asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const data = req.body as JobMatcherBody;
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Resume analyzed successfully", result.data));
+  },
+);
 
-  const user = await User.findById(req.user?._id);
-  if (!user) throw new UnauthorizedError("User session is invalid or expired");
-  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+export const jobMatcher = asyncHandler(
+  async (req: AuthenticatedRequest, res) => {
+    const data = req.body as JobMatcherBody;
 
-  const userPrompt = JobMatcherUserPrompt(data.mode, data.skills, data.experience);
-  const parsed = await callModel(
-    JobMatcherSystemInstruction,
-    userPrompt,
-    data.mode === "resume" ? data.pdfBase64 : undefined,
-  );
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+      throw new UnauthorizedError("User session is invalid or expired");
+    }
 
-  const result = JobMatchSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
-  }
+    if (!user.canMakeRequest()) {
+      throw new ForbiddenError("Upgrade Your plan to continue");
+    }
 
-  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+    const userPrompt = JobMatcherUserPrompt(
+      data.mode,
+      data.skills,
+      data.experience,
+    );
+    const parsed = await callModel(
+      JobMatcherSystemInstruction,
+      userPrompt,
+      data.mode === "resume" ? data.pdfBase64 : undefined,
+    );
 
-  return res.status(200).json(new ApiResponse(200, "jobs fetched successfully", result.data));
-});
+    const result = JobMatchSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new ApiError(500, "AI response failed validation", [], {
+        issues: result.error.issues,
+      });
+    }
 
-export const generateInterview = asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const data = req.body as GenerateInterviewBody;
+    await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
 
-  const user = await User.findById(req.user?._id);
-  if (!user) throw new UnauthorizedError("User session is invalid or expired");
-  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "jobs fetched successfully", result.data));
+  },
+);
 
-  const userPrompt = InterviewUserPrompt(data.mode, data.skills, data.experience);
-  const parsed = await callModel(
-    InterviewSystemInstruction(data.round),
-    userPrompt,
-    data.mode === "resume" ? data.pdfBase64 : undefined,
-  );
+export const generateInterview = asyncHandler(
+  async (req: AuthenticatedRequest, res) => {
+    const data = req.body as GenerateInterviewBody;
 
-  const result = InterviewSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
-  }
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+      throw new UnauthorizedError("User session is invalid or expired");
+    }
 
-  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+    if (!user.canMakeRequest()) {
+      throw new ForbiddenError("Upgrade Your plan to continue");
+    }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "Interview questions generated successfully", result.data));
-});
+    const userPrompt = InterviewUserPrompt(
+      data.mode,
+      data.skills,
+      data.experience,
+    );
+    const parsed = await callModel(
+      InterviewSystemInstruction(data.round),
+      userPrompt,
+      data.mode === "resume" ? data.pdfBase64 : undefined,
+    );
 
-export const buildResume = asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const data = req.body as BuildResumeBody;
+    const result = InterviewSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new ApiError(500, "AI response failed validation", [], {
+        issues: result.error.issues,
+      });
+    }
 
-  const user = await User.findById(req.user?._id);
-  if (!user) throw new UnauthorizedError("User session is invalid or expired");
-  if (!user.canMakeRequest()) throw new ForbiddenError("Upgrade Your plan to continue");
+    await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
 
-  const userPrompt = BuildResumeUserPrompt(data.mode, data.formData);
-  const parsed = await callModel(
-    BuildResumeSystemInstruction(data.mode),
-    userPrompt,
-    data.mode === "improve" ? data.pdfBase64 : undefined,
-  );
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          "Interview questions generated successfully",
+          result.data,
+        ),
+      );
+  },
+);
 
-  const result = BuiltResumeSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new ApiError(500, "AI response failed validation", [], { issues: result.error.issues });
-  }
+export const buildResume = asyncHandler(
+  async (req: AuthenticatedRequest, res) => {
+    const data = req.body as BuildResumeBody;
 
-  await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+      throw new UnauthorizedError("User session is invalid or expired");
+    }
 
-  res.status(200).json(new ApiResponse(200, "Resume built successfully", result.data));
-});
+    if (!user.canMakeRequest()) {
+      throw new ForbiddenError("Upgrade Your plan to continue");
+    }
+
+
+    const userPrompt = BuildResumeUserPrompt(data.mode, data.formData);
+    
+    const parsed = await callModel(
+      BuildResumeSystemInstruction(data.mode),
+      userPrompt,
+      data.mode === "improve" ? data.pdfBase64 : undefined,
+    );
+
+    const result = BuiltResumeSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new ApiError(500, "AI response failed validation", [], {
+        issues: result.error.issues,
+      });
+    }
+
+    await incrementUsageIfFree(user._id.toString(), user.hasProAcess());
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, "Resume built successfully", result.data));
+  },
+);
