@@ -1,54 +1,56 @@
-
 import { downloadReport } from "../utils/html-report";
 import { prioBg, prioColor, scoreBar, scoreColor } from "../utils/ui";
 import { toBase64 } from "../utils/file";
-import {
-  CheckCircle2,
-  ChevronRight,
-  Download,
-  Target,
-} from "lucide-react";
+import { CheckCircle2, ChevronRight, Download, Target } from "lucide-react";
 import { ScoreRing } from "../ring";
-import { useQueryClient } from "@tanstack/react-query";
 import { useToolForm } from "../hooks/useToolForm";
-import { useAiMutations } from "../hooks/useAiMutations";
-import { extractErrorMessage } from "../utils/error";
+import { useAiMutations, AI_QUERY_KEYS } from "../hooks/useAiMutations";
+import { useCachedResult } from "../hooks/useCachedResult";
+import type { Analysis } from "../types";
 import { Dropzone } from "../components/ui/Dropzone";
 import { ErrorAlert, LoadingState } from "../components/ui/Feedback";
+import { useIsMutating } from "@tanstack/react-query";
+import { useState } from "react";
+import { extractErrorMessage } from "../utils/error";
 
 const Analyze = () => {
-  const queryClient = useQueryClient();
-  const {
-    file,
-    error,
-    setError,
-    fileRef,
-    handleFileChange,
-    getDropzoneProps,
-  } = useToolForm();
-
+  const { file, error, setError, fileRef, handleFileChange, getDropzoneProps } =
+    useToolForm();
   const { analyzeResumeMutation } = useAiMutations();
-  const { mutate, data: result, isPending, reset } = analyzeResumeMutation;
+  const { mutate } = analyzeResumeMutation;
+  const isPending =
+    useIsMutating({ mutationKey: AI_QUERY_KEYS.resumeAnalysis }) > 0;
+  const { result, clearResult } = useCachedResult<Analysis>(
+    AI_QUERY_KEYS.resumeAnalysis,
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setError("");
-    reset();
+    clearResult();
 
-    if (!file) return setError("Please upload your resume PDF.");
+    if (!file) {
+      setIsSubmitting(false);
+      return setError("Please upload your resume PDF.");
+    }
 
-    const pdfBase64 = await toBase64(file);
-    mutate(pdfBase64, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      },
-      onError: (err) => setError(extractErrorMessage(err)),
-    });
+    try {
+      const pdfBase64 = await toBase64(file);
+      mutate(pdfBase64, {
+        onError: (err) => setError(extractErrorMessage(err)),
+        onSettled: () => setIsSubmitting(false),
+      });
+    } catch (err) {
+      setIsSubmitting(false);
+      setError(extractErrorMessage(err));
+    }
   }
 
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
-
         <Dropzone
           file={file}
           loading={isPending}
@@ -59,7 +61,7 @@ const Analyze = () => {
 
         <ErrorAlert message={error} />
 
-        {!isPending && (
+        {!isSubmitting && !isPending && (
           <button
             onClick={handleSubmit}
             className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
@@ -68,7 +70,9 @@ const Analyze = () => {
           </button>
         )}
 
-        {isPending && <LoadingState message="Analyzing ATS Compatibility..." />}
+        {(isSubmitting || isPending) && (
+          <LoadingState message="Analyzing ATS Compatibility..." />
+        )}
 
         {result && !isPending && (
           <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in">
@@ -76,9 +80,7 @@ const Analyze = () => {
               <ScoreRing score={result.atsScore} />
               <div className="absolute flex flex-col items-center">
                 <span
-                  className={`text-2xl font-black ${scoreColor(
-                    result.atsScore
-                  )}`}
+                  className={`text-2xl font-black ${scoreColor(result.atsScore)}`}
                 >
                   {result.atsScore}
                 </span>
@@ -94,6 +96,7 @@ const Analyze = () => {
                 {result.summary}
               </p>
             </div>
+
             <div className="w-full glass-card p-6 flex flex-col gap-5 mt-4">
               <p className="text-xs text-white/30 uppercase tracking-widest font-bold">
                 Score Breakdown
@@ -108,9 +111,7 @@ const Analyze = () => {
                   </div>
                   <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
                     <div
-                      className={`h-full bg-gradient-to-r ${scoreBar(
-                        val.score
-                      )} rounded-full transition-all duration-1000 ease-out`}
+                      className={`h-full bg-gradient-to-r ${scoreBar(val.score)} rounded-full transition-all duration-1000 ease-out`}
                       style={{ width: `${val.score}%` }}
                     />
                   </div>
@@ -144,18 +145,14 @@ const Analyze = () => {
               {result.suggestions.map((s, i) => (
                 <div
                   key={i}
-                  className={`p-4 rounded-xl border flex flex-col gap-2 transition-colors ${
-                    prioBg[s.priority]
-                  }`}
+                  className={`p-4 rounded-xl border flex flex-col gap-2 transition-colors ${prioBg[s.priority]}`}
                 >
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-white/90">
                       {s.category}
                     </span>
                     <span
-                      className={`text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                        prioColor[s.priority]
-                      }`}
+                      className={`text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${prioColor[s.priority]}`}
                     >
                       {s.priority} Priority
                     </span>
