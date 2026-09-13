@@ -23,15 +23,14 @@ export const useAuth = () => {
     retry:false
   });
 
-  const logout = async () => {
+    const logout = async () => {
     try {
       await authApi.logout();
-    } catch (e) {
-      console.log(e);
-    } finally {
-      queryClient.setQueryData(["authUser"], null);
+      queryClient.clear();
       window.location.href = "/login";
-    }
+    } catch (error) {
+      console.error(error);
+    } 
   };
 
   return {
