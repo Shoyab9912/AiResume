@@ -39,7 +39,7 @@ const schema: Schema<IUser> = new Schema(
   { timestamps: true },
 );
 
-schema.pre("save", async function (next) {
+schema.pre("save", async function (_next) {
   if (this.isModified("password")) {
     this.password = await bcrypt.hash(this.password, 10);
   }

@@ -3,7 +3,7 @@ import { z, ZodType } from "zod";
 import { ValidationError } from "../utils/errors.js";
 
 export const validate =
-  (schema: ZodType) => (req: Request, res: Response, next: NextFunction) => {
+  (schema: ZodType) => (req: Request, _res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
       const { fieldErrors } = z.flattenError(result.error) as {

@@ -8,7 +8,7 @@ export interface AuthenticatedRequest extends Request {
   user?: IUser;
 }
 
-export const verifyJwt = asyncHandler(async (req, res, next) => {
+export const verifyJwt = asyncHandler(async (req, _res, next) => {
   const token =
     req.header("Authorization")?.replace(/^Bearer\s+/i, "") ||
     req.cookies?.accessToken;
