@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto"
 
 export function generateAccessToken(userId: string, email: string): string {
   return jwt.sign(
@@ -13,3 +14,8 @@ export function generateRefreshToken(userId: string): string {
     expiresIn: "7d",
   });
 }
+
+export function createCsrfToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
