@@ -11,7 +11,7 @@ export interface AuthenticatedRequest extends Request {
 export const verifyJwt = asyncHandler(async (req, _res, next) => {
   const token =
     req.header("Authorization")?.replace(/^Bearer\s+/i, "") ||
-    req.cookies?.accessToken;
+    req.cookies?.access_token;
 
   if (!token) {
     throw new UnauthorizedError("Authentication required");
