@@ -13,9 +13,12 @@ import {
   buildResume,
 } from "../controllers/ai.controller.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
+import { requireCsrf } from "../middlewares/csrf.middleware.js";
+
 
 const router = express.Router();
 router.use(verifyJwt);
+router.use(requireCsrf);
 
 router.post("/analyze", validate(analyseResumeBodySchema), analyzeResume);
 router.post("/job-matcher", validate(jobMatcherBodySchema), jobMatcher);
