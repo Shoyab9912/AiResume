@@ -1,4 +1,3 @@
-import type { ReactNode} from "react";
 // ── 1. USER & AUTHENTICATION TYPES ──
 
 export interface User {
@@ -40,19 +39,6 @@ export interface ApiErrorResponse {
   errors?: Record<string, string[]>;
 }
 
-// ── 2. APP CONTEXT TYPES ──
-
-export interface AppContextType {
-  user: User | null;
-  loading: boolean;
-  isAuth: boolean;
-  LogoutUser: () => Promise<void>;
-}
-
-
-export interface AppProps {
-  children: ReactNode;
-}
 
 // ── 3. FEATURE: JOB MATCHER ──
 
