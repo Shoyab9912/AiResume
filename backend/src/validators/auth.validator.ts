@@ -44,6 +44,4 @@ export const loginSchema = z.object({
     .min(2, "Password cannot be empty"),
 });
 
-export type RegisterInput = z.infer<typeof registerSchema>;
-export type LoginInput = z.infer<typeof loginSchema>;
 

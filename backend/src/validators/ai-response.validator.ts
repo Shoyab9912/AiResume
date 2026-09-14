@@ -17,7 +17,10 @@ export const ResumeAnalysisSchema = z.object({
   strengths: z.array(z.string().max(300)).max(20),
   summary: z.string().max(1000),
 });
-export type ResumeAnalysis = z.infer<typeof ResumeAnalysisSchema>;
+
+
+
+
 
 export const JobMatchSchema = z.object({
   summary: z.string().max(1000),
@@ -32,7 +35,8 @@ export const JobMatchSchema = z.object({
     applyTip: z.string().max(500),
   })).max(5),
 });
-export type JobMatch = z.infer<typeof JobMatchSchema>;
+
+
 
 export const InterviewSchema = z.object({
   role: z.string().max(150),
@@ -85,4 +89,3 @@ export const BuiltResumeSchema = z.object({
   projects: z.array(ProjectEntrySchema).max(15).optional().default([]),
   certifications: z.array(z.string().max(200)).max(20).optional().default([]),
 });
-export type BuiltResume = z.infer<typeof BuiltResumeSchema>;
