@@ -6,7 +6,7 @@ export const errorHandler = (
   err: Error | ApiError ,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   console.error({
     method: req.method,
@@ -28,7 +28,8 @@ export const errorHandler = (
   res.status(err.statusCode).json({
     status: "error",
     message: err.message,
-    errors: err.errors 
+    errors: err.errors,
+     ...(process.env.NODE_ENV !== "production" && { data: err.data }),
   });
   return;
 }
