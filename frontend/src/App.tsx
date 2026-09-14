@@ -1,4 +1,3 @@
-import { lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import MainLayout from "./components/layout/MainLayout";
@@ -11,12 +10,11 @@ import { DefaultFallback } from "./components/DefaultFallback";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-
-const Account = lazy(() => import("./pages/Account"));
-const Analyze = lazy(() => import("./pages/Analyze"));
-const JobMatcher = lazy(() => import("./pages/JobMatcher"));
-const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
-const BuildResume = lazy(() => import("./pages/BuildResume"));
+import Account from "./pages/Account";
+import Analyze from "./pages/Analyze";
+import JobMatcher from "./pages/JobMatcher";
+import InterviewPrep from "./pages/InterviewPrep";
+import BuildResume from "./pages/BuildResume";
 
 const withBoundary = (element: React.ReactElement) => (
   <ErrorBoundary fallback={DefaultFallback}>
