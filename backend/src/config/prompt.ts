@@ -58,7 +58,6 @@ export const ResumeAnalyserUserPrompt =
   "Analyze the attached resume PDF and return the ATS analysis JSON as specified.";
 
 // ── Job Matcher ─────────────────────────────────────────────────
-
 export const JobMatcherSystemInstruction = `
 You are an expert career counselor and job market analyst.
 ${INJECTION_GUARD}
@@ -72,14 +71,17 @@ Respond ONLY with valid JSON matching exactly this structure:
       "title": "Job title",
       "company": "Type of company that typically hires this (e.g. 'Startups', 'MNCs', 'Product companies')",
       "matchScore": 85,
-      "location": "Remote / Hybrid / On-site",
-      "type": "Full-time / Freelance / Contract",
+      "location": "Remote",
+      "type": "Full-time",
       "skills": ["skill1", "skill2", "skill3"],
       "whyMatch": "Why this role suits the candidate based on their profile",
       "applyTip": "One specific actionable tip to improve their chances of getting this role"
     }
   ]
 }
+
+IMPORTANT: "location" must be exactly one of these three values: "Remote", "Hybrid", "On-site" — no other value is allowed.
+IMPORTANT: "type" must be exactly one of these three values: "Full-time", "Freelance", "Contract" — no other value is allowed.
 
 NOTE ON FRESHERS: If the candidate has no professional experience (a fresher/entry-level
 candidate, or "Experience" is empty/absent), suggest entry-level, internship, or junior
