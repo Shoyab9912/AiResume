@@ -73,7 +73,7 @@ export const usePaymentMutations = () => {
     try {
       const order = await checkoutMutation.mutateAsync(payload);
       idempotencyKeyRef.current = null;
-      console.log("START PAYMENT");
+     
       const razorpay = new window.Razorpay({
         key: order.key,
         amount: order.amount,
@@ -103,7 +103,7 @@ export const usePaymentMutations = () => {
         );
       });
 
-      console.log("RAZORPAY INSTANCE CREATED");
+      
       razorpay.open();
     } catch (error: unknown) {
       toast.error(extractErrorMessage(error));
