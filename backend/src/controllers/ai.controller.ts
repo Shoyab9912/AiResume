@@ -2,8 +2,6 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
   ForbiddenError,
-  ValidationError,
-  BadRequestError,
   UnauthorizedError,
 } from "../utils/errors.js";
 import { User } from "../models/user.model.js";
@@ -182,7 +180,7 @@ export const jobMatcher = asyncHandler(
     const result = JobMatchSchema.safeParse(parsed);
     if (!result.success) {
       throw new ApiError(500, "AI response failed validation", [], {
-        issues: result.error.issues,
+        data: result.error.issues,
       });
     }
 
