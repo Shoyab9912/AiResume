@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import { FilePlus } from "lucide-react";
 import { useToolForm } from "../hooks/useToolForm";
-import { useAiMutations } from "../hooks/useAiMutations";
+import { useAiMutations, AI_QUERY_KEYS } from "../hooks/useAiMutations";
+import { useCachedResult } from "../hooks/useCachedResult";
 import type { BuildResumePayload } from "../hooks/useAiMutations";
 import { toBase64 } from "../utils/file";
-import type { Experience, Education, Project } from "../types";
+import type { Experience, Education, Project, ResumeData } from "../types";
 import { BasicsForm } from "../components/resume/BasicForm";
 import { ExperienceForm } from "../components/resume/ExperienceForm";
 import { EducationForm } from "../components/resume/EducationForm";
@@ -13,7 +15,6 @@ import { ResumePreview } from "../components/resume/ResumePreview";
 import { Dropzone } from "../components/ui/Dropzone";
 import { LoadingState, ErrorAlert } from "../components/ui/Feedback";
 import { extractErrorMessage } from "../utils/error";
-import { useQueryClient } from "@tanstack/react-query";
 
 const createEmptyExperience = (): Experience => ({
   title: "", company: "", location: "", startDate: "", endDate: "", bullets: [""],
@@ -24,10 +25,13 @@ const createEmptyEducation = (): Education => ({
 const createEmptyProject = (): Project => ({ name: "", link: "", bullets: [""] });
 
 const BuildResume = () => {
-  const queryClient = useQueryClient();
-  const { mode, setMode, file, error, setError, fileRef, getDropzoneProps, handleFileChange } = useToolForm();
+  const { mode, setMode, file, error, setError, fileRef, getDropzoneProps, handleFileChange } =
+    useToolForm();
   const { buildResumeMutation } = useAiMutations();
-  const { mutate, data: result, isPending, reset } = buildResumeMutation;
+  const { mutate } = buildResumeMutation;
+  const isPending = useIsMutating({ mutationKey: AI_QUERY_KEYS.builtResume }) > 0;
+  const { result, clearResult } = useCachedResult<ResumeData>(AI_QUERY_KEYS.builtResume);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [basics, setBasics] = useState({ name: "", email: "", phone: "", location: "", linkedin: "" });
   const [summary, setSummary] = useState("");
@@ -71,13 +75,17 @@ const BuildResume = () => {
   };
 
   async function handleSubmit() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setError("");
-    reset();
+    clearResult();
 
     if (mode === "improve" && !file) {
+      setIsSubmitting(false);
       return setError("Please upload your resume pdf.");
     }
     if (mode === "manual" && !basics.name.trim()) {
+      setIsSubmitting(false);
       return setError("Please Enter your name");
     }
 
@@ -85,31 +93,34 @@ const BuildResume = () => {
     const cleanedEducation = education.filter((edu) => edu.degree.trim() !== "" || edu.school.trim() !== "");
     const cleanedProjects = projects.filter((proj) => proj.name.trim() !== "");
 
-    const payload: BuildResumePayload =
-      mode === "manual"
-        ? {
-            mode: "manual",
-            formData: {
-              ...basics,
-              summary,
-              experience: cleanedExperience,
-              education: cleanedEducation,
-              skills: {
-                technical: techSkills.split(",").map((s) => s.trim()).filter(Boolean),
-                soft: softSkills.split(",").map((s) => s.trim()).filter(Boolean),
+    try {
+      const payload: BuildResumePayload =
+        mode === "manual"
+          ? {
+              mode: "manual",
+              formData: {
+                ...basics,
+                summary,
+                experience: cleanedExperience,
+                education: cleanedEducation,
+                skills: {
+                  technical: techSkills.split(",").map((s) => s.trim()).filter(Boolean),
+                  soft: softSkills.split(",").map((s) => s.trim()).filter(Boolean),
+                },
+                projects: cleanedProjects,
+                certifications: certifications.split(",").map((s) => s.trim()).filter(Boolean),
               },
-              projects: cleanedProjects,
-              certifications: certifications.split(",").map((s) => s.trim()).filter(Boolean),
-            },
-          }
-        : { mode: "improve", pdfBase64: await toBase64(file!) };
+            }
+          : { mode: "improve", pdfBase64: await toBase64(file!) };
 
-    mutate(payload, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      },
-      onError: (err) => setError(extractErrorMessage(err)),
-    });
+      mutate(payload, {
+        onError: (err) => setError(extractErrorMessage(err)),
+        onSettled: () => setIsSubmitting(false),
+      });
+    } catch (err) {
+      setIsSubmitting(false);
+      setError(extractErrorMessage(err));
+    }
   }
 
   return (
@@ -119,9 +130,11 @@ const BuildResume = () => {
           {(["manual", "improve"] as const).map((m) => (
             <button
               key={m}
+              disabled={isPending}
               onClick={() => {
+                if(isPending) return;
                 setMode(m);
-                reset();
+                clearResult();
                 setError("");
               }}
               className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 capitalize ${
@@ -155,7 +168,7 @@ const BuildResume = () => {
                 updateExperienceField(
                   experienceIndex,
                   "bullets",
-                  experience[experienceIndex].bullets.filter((_, j) => j !== bulletIndex)
+                  experience[experienceIndex].bullets.filter((_, j) => j !== bulletIndex),
                 )
               }
             />
@@ -186,7 +199,7 @@ const BuildResume = () => {
                 updateProjectField(
                   projectIndex,
                   "bullets",
-                  projects[projectIndex].bullets.filter((_, j) => j !== bulletIndex)
+                  projects[projectIndex].bullets.filter((_, j) => j !== bulletIndex),
                 )
               }
             />
@@ -205,7 +218,7 @@ const BuildResume = () => {
 
         <ErrorAlert message={error} />
 
-        {!isPending && (
+        {!isSubmitting && !isPending && (
           <button
             onClick={handleSubmit}
             className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
@@ -214,7 +227,7 @@ const BuildResume = () => {
           </button>
         )}
 
-        {isPending && <LoadingState message="Building your ATS optimized resume..." />}
+        {(isSubmitting || isPending) && <LoadingState message="Building your ATS optimized resume..." />}
 
         {result && !isPending && <ResumePreview result={result} />}
       </div>
