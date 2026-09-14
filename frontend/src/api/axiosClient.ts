@@ -4,12 +4,51 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-export const server = "http://localhost:4000/api/v1";
+
+
+
+function getCookie(name: string) {
+  const cookie = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(`${name}=`));
+
+  return cookie ? decodeURIComponent(cookie.split("=")[1]) : "";
+}
+
+
+
+const apiBaseUrl = import.meta.env.VITE_API_URL;
+
+if (!apiBaseUrl) {
+  throw new Error("vite api url is missing");
+}
+
 
 export const api = axios.create({
-  baseURL: server,
+  baseURL: apiBaseUrl,
   withCredentials: true,
 });
+
+
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || "get").toUpperCase();
+
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const csrfToken = getCookie("csrf_token");
+
+    if (csrfToken) {
+      config.headers = config.headers || {};
+      config.headers["x-csrf-token"] = csrfToken;
+    }
+  }
+
+  return config;
+});
+
+
+
+
 
 interface QueueItem {
   resolve: (value?: void) => void;
@@ -64,7 +103,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await axios.get(`${server}/auth/refresh-token`, {
+        await axios.get(`${apiBaseUrl}/auth/refresh-token`, {
           withCredentials: true,
         });
         processQueue(null);
