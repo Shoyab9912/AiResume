@@ -1,10 +1,16 @@
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { authApi } from "../api/auth";
-import type { LoginPayload, RegisterPayload, User, ApiResponse,ApiError } from "../types";
-
+import type {
+  LoginPayload,
+  RegisterPayload,
+  VerifyOtpPayload,
+  ResendOtpPayload,
+  User,
+  ApiResponse,
+  ApiError,
+} from "../types";
 
 export const useAuthMutations = () => {
   const queryClient = useQueryClient();
@@ -29,7 +35,23 @@ export const useAuthMutations = () => {
 
   const registerMutation = useMutation({
     mutationFn: (payload: RegisterPayload) => authApi.register(payload),
+    onSuccess: (res: ApiResponse<User>) => {
+      toast.success(res.message || "Check your email for a verification code");
+    },
+    onError: handleError,
+  });
+
+  const verifyOtpMutation = useMutation({
+    mutationFn: (payload: VerifyOtpPayload) => authApi.verifyOtp(payload),
     onSuccess: handleSuccess,
+    onError: handleError,
+  });
+
+  const resendOtpMutation = useMutation({
+    mutationFn: (payload: ResendOtpPayload) => authApi.resendOtp(payload),
+    onSuccess: (res: ApiResponse<null>) => {
+      toast.success(res.message || "Code resent");
+    },
     onError: handleError,
   });
 
@@ -42,6 +64,8 @@ export const useAuthMutations = () => {
   return {
     loginMutation,
     registerMutation,
+    verifyOtpMutation,
+    resendOtpMutation,
     googleMutation,
   };
 };

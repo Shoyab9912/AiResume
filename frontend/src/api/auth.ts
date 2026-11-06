@@ -3,7 +3,9 @@ import type {
   LoginPayload,
   RegisterPayload,
   User,
-  ApiResponse
+  ApiResponse,
+  VerifyOtpPayload,
+  ResendOtpPayload
 } from "../types";
 
 import {api} from './axiosClient'
@@ -12,6 +14,14 @@ import {api} from './axiosClient'
 export const authApi = {
   register: (payload: RegisterPayload): Promise<ApiResponse<User>> => {
     return api.post("/users/register", payload);
+  },
+
+  verifyOtp: (payload: VerifyOtpPayload): Promise<ApiResponse<User>> => {
+    return api.post("/users/verify-otp", payload);
+  },
+
+  resendOtp: (payload: ResendOtpPayload): Promise<ApiResponse<null>> => {
+    return api.post("/users/resend-otp", payload);
   },
 
   login: (payload: LoginPayload): Promise<ApiResponse<User>> => {

@@ -15,7 +15,8 @@ export interface IUser extends Document {
   refreshToken: string | null;
   subscription: Date | null;
   freeRequestsUsed: number;
-  hasProAcess(): boolean;
+  isVerified:boolean;
+  hasProAccess(): boolean;
   canMakeRequest(): boolean;
   comparePassword(candidate: string): Promise<boolean>;
 }
@@ -23,7 +24,7 @@ export interface IUser extends Document {
 const schema: Schema<IUser> = new Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true,lowercase:true,trim:true },
     image: { type: String, default: "" },
     password: { type: String, select: false },
     refreshToken: { type: String, default: null, select: false },
@@ -35,11 +36,15 @@ const schema: Schema<IUser> = new Schema(
       required: true,
       default: LoginProvider.LOCAL,
     },
+    isVerified : {
+      type:Boolean,
+      default:false
+    }
   },
   { timestamps: true },
 );
 
-schema.pre("save", async function (_next) {
+schema.pre("save", async function () {
   if (this.isModified("password")) {
     this.password = await bcrypt.hash(this.password, 10);
   }
@@ -51,12 +56,12 @@ schema.methods.comparePassword = async function (
   return bcrypt.compare(candidate, this.password);
 };
 
-schema.methods.hasProAcess = function (): boolean {
+schema.methods.hasProAccess = function (): boolean {
   return !!this.subscription && new Date() < new Date(this.subscription);
 };
 
 schema.methods.canMakeRequest = function () {
-  if (this.hasProAcess()) return true;
+  if (this.hasProAccess()) return true;
   return this.freeRequestsUsed < 3; 
 };
 

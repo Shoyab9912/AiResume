@@ -1,12 +1,20 @@
 import { type CookieOptions, type Response } from "express";
-import { generateAccessToken, generateRefreshToken, createCsrfToken } from "./jwt.js";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  createCsrfToken,
+} from "./jwt.js";
 
 const ACCESS_COOKIE = "access_token";
 const REFRESH_COOKIE = "refresh_token";
 const CSRF_COOKIE = "csrf_token";
 
-const COOKIE_SECURE = true;
-const COOKIE_SAME_SITE: CookieOptions["sameSite"] = "none";
+const isProduction = process.env.NODE_ENV === "production";
+
+
+const COOKIE_SECURE = isProduction;
+const COOKIE_SAME_SITE: CookieOptions["sameSite"] = isProduction ? "none" : "lax";
+
 
 function createCookieOptions(maxAge: number): CookieOptions {
   return {
@@ -28,9 +36,14 @@ function createCsrfCookieOptions(maxAge: number): CookieOptions {
   };
 }
 
-export function setAuthCookies(res: Response, userId: string, email: string) {
+export function setAuthCookies(
+  res: Response,
+  userId: string,
+  email: string,
+  existingRefreshToken?: string,
+) {
   const accessToken = generateAccessToken(userId, email);
-  const refreshToken = generateRefreshToken(userId);
+  const refreshToken = existingRefreshToken ?? generateRefreshToken(userId);
   const csrfToken = createCsrfToken();
 
   const accessMaxAge = 15 * 60 * 1000;
