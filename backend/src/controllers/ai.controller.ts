@@ -1,6 +1,10 @@
 import { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { BadRequestError, ForbiddenError, UnauthorizedError } from "../utils/errors.js";
+import {
+  BadRequestError,
+  ForbiddenError,
+  UnauthorizedError,
+} from "../utils/errors.js";
 import { User } from "../models/user.model.js";
 import { GoogleGenAI, type Part } from "@google/genai";
 import { ApiError } from "../utils/ApiError.js";
@@ -34,25 +38,16 @@ const ai = new GoogleGenAI({
 
 const MODEL = "gemini-3.6-flash";
 
-function stripPdfPrefix(b64: string) {
-  return b64.replace(/^data:application\/pdf;base64,/, "");
-}
-
 async function callModel(
   systemInstruction: string,
   userText: string,
-  pdfBase64?: string,
+  resumeText?: string,
 ) {
-  const parts: Part[] = [{ text: userText }];
+  const combinedText = resumeText
+    ? `${userText}\n\nRESUME TEXT:\n${resumeText}`
+    : userText;
 
-  if (pdfBase64) {
-    parts.push({
-      inlineData: {
-        mimeType: "application/pdf",
-        data: stripPdfPrefix(pdfBase64),
-      },
-    });
-  }
+  const parts: Part[] = [{ text: combinedText }];
 
   let response;
 
@@ -88,100 +83,113 @@ function mapGeminiError(err: unknown): ApiError {
   const raw = err instanceof Error ? err.message : String(err);
 
   let code: number | undefined;
-  let status: string | undefined;
 
   try {
     const parsed = JSON.parse(raw);
     code = parsed?.error?.code;
-    status = parsed?.error?.status;
   } catch {
-    // raw wasn't JSON, fall through with code/status undefined
+   // raw is not valid JSON.
+
   }
 
-  if (code === 503 || status === "UNAVAILABLE") {
+  if (code === 503) {
     return new ApiError(
       503,
       "AI service is currently busy. Please try again in a moment.",
     );
   }
 
-  if (code === 429 || status === "RESOURCE_EXHAUSTED") {
+  if (code === 429) {
     return new ApiError(
       429,
       "Too many requests right now. Please try again shortly.",
     );
   }
 
-  if (code === 400 || status === "INVALID_ARGUMENT") {
+  if (code === 400) {
     return new BadRequestError(
-      "The uploaded file could not be processed. Please check the file and try again.",
+      "The request data could not be processed. Please check your input and try again.",
     );
   }
 
-  return new ApiError(
-    502,
-    "AI service failed to respond. Please try again.",
-  );
+  return new ApiError(502, "AI service failed to respond. Please try again.");
 }
 
-async function incrementUsageIfFree(
-  userId: string,
-  hasProAcess: boolean,
-) {
-  if (!hasProAcess) {
-    const user = await User.findOneAndUpdate(
-      {
-        _id: userId,
-        $or: [
-          { subscription: null },
-          { subscription: { $lte: new Date() } },
-        ],
-        freeRequestsUsed: { $lt: 3 },
-      },
-      {
-        $inc: { freeRequestsUsed: 1 },
-      },
-    );
 
-    if (!user) {
-      throw new ForbiddenError("Free request limit reached");
+
+async function reserveQuotaOrThrow(userId?: string): Promise<{
+  userId: string;
+  usedFreeCredit: boolean;
+}> {
+  if (!userId) {
+    throw new UnauthorizedError("User session is invalid or expired");
+  }
+
+  const now = new Date();
+
+
+  const proUser = await User.findOne({
+    _id: userId,
+    subscription: { $gt: now },
+  })
+    .select("_id")
+    .lean();
+
+  if (proUser) {
+    return { userId: proUser._id.toString(), usedFreeCredit: false };
+  }
+
+  const freeUser = await User.findOneAndUpdate(
+    {
+      _id: userId,
+      $or: [{ subscription: null }, { subscription: { $lte: now } }],
+      freeRequestsUsed: { $lt: 3 },
+    },
+    { $inc: { freeRequestsUsed: 1 } },
+    { returnDocument: "after" },
+  )
+    .select("_id")
+    .lean();
+
+  if (!freeUser) {
+    const exists = await User.exists({ _id: userId });
+    if (!exists) {
+      throw new UnauthorizedError("User session is invalid or expired");
     }
+    throw new ForbiddenError("Free request limit reached");
   }
+
+  return { userId: freeUser._id.toString(), usedFreeCredit: true };
 }
 
-async function decrementUsageIfFree(
+
+async function refundFreeCreditIfUsed(
   userId: string,
-  hasProAcess: boolean,
+  usedFreeCredit: boolean,
 ) {
-  if (!hasProAcess) {
-    await User.findByIdAndUpdate(userId, {
-      $inc: { freeRequestsUsed: -1 },
-    });
+  if (usedFreeCredit) {
+    await User.findOneAndUpdate(
+      { _id: userId, freeRequestsUsed: { $gt: 0 } },
+      { $inc: { freeRequestsUsed: -1 } },
+    );
   }
 }
 
 export const analyzeResume = asyncHandler(
   async (req: AuthenticatedRequest, res) => {
-    const { pdfBase64 } = req.body as AnalyzeResumeBody;
+    const { resumeText, jobDescription } = req.body as AnalyzeResumeBody;
 
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    const hasProAcess = user.hasProAcess();
-
-    await incrementUsageIfFree(
-      user._id.toString(),
-      hasProAcess,
+    const { userId, usedFreeCredit } = await reserveQuotaOrThrow(
+      req.user?._id?.toString(),
     );
 
     try {
+      const userPrompt = ResumeAnalyserUserPrompt(jobDescription);
+
       const parsed = await callModel(
         ResumeAnalyserSystemInstruction,
-        ResumeAnalyserUserPrompt,
-        pdfBase64,
+        userPrompt,
+        resumeText,
       );
 
       const result = ResumeAnalysisSchema.safeParse(parsed);
@@ -195,18 +203,10 @@ export const analyzeResume = asyncHandler(
       return res
         .status(200)
         .json(
-          new ApiResponse(
-            200,
-            "Resume analyzed successfully",
-            result.data,
-          ),
+          new ApiResponse(200, "Resume analyzed successfully", result.data),
         );
     } catch (error) {
-      await decrementUsageIfFree(
-        user._id.toString(),
-        hasProAcess,
-      );
-
+      await refundFreeCreditIfUsed(userId, usedFreeCredit);
       throw error;
     }
   },
@@ -216,17 +216,8 @@ export const jobMatcher = asyncHandler(
   async (req: AuthenticatedRequest, res) => {
     const data = req.body as JobMatcherBody;
 
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    const hasProAcess = user.hasProAcess();
-
-    await incrementUsageIfFree(
-      user._id.toString(),
-      hasProAcess,
+    const { userId, usedFreeCredit } = await reserveQuotaOrThrow(
+      req.user?._id?.toString(),
     );
 
     try {
@@ -239,32 +230,22 @@ export const jobMatcher = asyncHandler(
       const parsed = await callModel(
         JobMatcherSystemInstruction,
         userPrompt,
-        data.mode === "resume" ? data.pdfBase64 : undefined,
+        data.mode === "resume" ? data.resumeText : undefined,
       );
 
       const result = JobMatchSchema.safeParse(parsed);
 
       if (!result.success) {
         throw new ApiError(500, "AI response failed validation", [], {
-          data: result.error.issues,
+          issues: result.error.issues,
         });
       }
 
       return res
         .status(200)
-        .json(
-          new ApiResponse(
-            200,
-            "jobs fetched successfully",
-            result.data,
-          ),
-        );
+        .json(new ApiResponse(200, "jobs fetched successfully", result.data));
     } catch (error) {
-      await decrementUsageIfFree(
-        user._id.toString(),
-        hasProAcess,
-      );
-
+      await refundFreeCreditIfUsed(userId, usedFreeCredit);
       throw error;
     }
   },
@@ -274,17 +255,8 @@ export const generateInterview = asyncHandler(
   async (req: AuthenticatedRequest, res) => {
     const data = req.body as GenerateInterviewBody;
 
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    const hasProAcess = user.hasProAcess();
-
-    await incrementUsageIfFree(
-      user._id.toString(),
-      hasProAcess,
+    const { userId, usedFreeCredit } = await reserveQuotaOrThrow(
+      req.user?._id?.toString(),
     );
 
     try {
@@ -297,7 +269,7 @@ export const generateInterview = asyncHandler(
       const parsed = await callModel(
         InterviewSystemInstruction(data.round),
         userPrompt,
-        data.mode === "resume" ? data.pdfBase64 : undefined,
+        data.mode === "resume" ? data.resumeText : undefined,
       );
 
       const result = InterviewSchema.safeParse(parsed);
@@ -318,11 +290,7 @@ export const generateInterview = asyncHandler(
           ),
         );
     } catch (error) {
-      await decrementUsageIfFree(
-        user._id.toString(),
-        hasProAcess,
-      );
-
+      await refundFreeCreditIfUsed(userId, usedFreeCredit);
       throw error;
     }
   },
@@ -332,29 +300,17 @@ export const buildResume = asyncHandler(
   async (req: AuthenticatedRequest, res) => {
     const data = req.body as BuildResumeBody;
 
-    const user = await User.findById(req.user?._id);
-
-    if (!user) {
-      throw new UnauthorizedError("User session is invalid or expired");
-    }
-
-    const hasProAcess = user.hasProAcess();
-
-    await incrementUsageIfFree(
-      user._id.toString(),
-      hasProAcess,
+    const { userId, usedFreeCredit } = await reserveQuotaOrThrow(
+      req.user?._id?.toString(),
     );
 
     try {
-      const userPrompt = BuildResumeUserPrompt(
-        data.mode,
-        data.formData,
-      );
+      const userPrompt = BuildResumeUserPrompt(data.mode, data.formData);
 
       const parsed = await callModel(
         BuildResumeSystemInstruction(data.mode),
         userPrompt,
-        data.mode === "improve" ? data.pdfBase64 : undefined,
+        data.mode === "improve" ? data.resumeText : undefined,
       );
 
       const result = BuiltResumeSchema.safeParse(parsed);
@@ -367,19 +323,9 @@ export const buildResume = asyncHandler(
 
       return res
         .status(200)
-        .json(
-          new ApiResponse(
-            200,
-            "Resume built successfully",
-            result.data,
-          ),
-        );
+        .json(new ApiResponse(200, "Resume built successfully", result.data));
     } catch (error) {
-      await decrementUsageIfFree(
-        user._id.toString(),
-        hasProAcess,
-      );
-
+      await refundFreeCreditIfUsed(userId, usedFreeCredit);
       throw error;
     }
   },

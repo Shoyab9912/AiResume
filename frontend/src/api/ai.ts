@@ -1,23 +1,28 @@
+
 import { api } from "./axiosClient";
 import type {
   Analysis,
+  AnalyzeResumePayload,
   GenerateInterviewPayload,
+  InterviewData,
   JobMatchPayload,
   JobMatchResponse,
   BuildResumePayload,
-  ResumeData
+  ResumeData,
 } from "../types";
 
 export const aiApi = {
-  analyzeResume: async (pdfBase64: string): Promise<Analysis> => {
-    const response = await api.post("/ai/analyze", { pdfBase64 });
+  analyzeResume: async (payload: AnalyzeResumePayload): Promise<Analysis> => {
+    const response = await api.post("/ai/analyze", payload);
     return response.data;
   },
   matchJobs: async (payload: JobMatchPayload): Promise<JobMatchResponse> => {
     const response = await api.post("/ai/job-matcher", payload);
     return response.data;
   },
-  generateInterview: async (payload: GenerateInterviewPayload) => {
+  generateInterview: async (
+    payload: GenerateInterviewPayload,
+  ): Promise<InterviewData> => {
     const { data } = await api.post("/ai/interview", payload);
     return data;
   },
