@@ -1,8 +1,16 @@
+
 import { CheckCircle, Shield } from "lucide-react";
+import { motion } from "motion/react";
 
 import { useAuth } from "../../hooks/useAuth";
 import { usePaymentMutations } from "../../hooks/usePaymentMutations";
 import { plans } from "../../utils/plans";
+
+import {
+  fadeUpContainer,
+  fadeUpItem,
+} from "../../utils/animations";
+
 import PlanCTA from "./PlanCTA";
 import type { User } from "../../types";
 
@@ -44,7 +52,6 @@ function StatusBadge() {
 }
 
 const Pricing = () => {
- 
   const { startPayment, checkoutMutation } = usePaymentMutations();
 
   return (
@@ -66,7 +73,7 @@ const Pricing = () => {
           <span className="text-gradient">when ready.</span>
         </h2>
 
-        <p className="text-white/40 mt-4 max-w-md mx-auto">
+        <p className="text-white/60 mt-4 max-w-md mx-auto">
           Your first 3 requests are completely free - no card needed.
         </p>
 
@@ -75,10 +82,18 @@ const Pricing = () => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6 items-center">
+      <motion.div
+        variants={fadeUpContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        className="grid md:grid-cols-3 gap-6"
+      >
         {plans.map((plan) => (
-          <div
+          <motion.div
             key={plan.name}
+            variants={fadeUpItem}
+            whileHover={{ y: -5 }}
             className={`glass-card p-8 flex flex-col gap-6 relative transition-all duration-300 ${
               plan.highlight
                 ? "border-indigo-500/20 shadow-2xl shadow-indigo-500/10 scale-[1.02]"
@@ -98,7 +113,7 @@ const Pricing = () => {
             )}
 
             <div>
-              <p className="text-xs text-white/35 uppercase tracking-widest mb-1">
+              <p className="text-xs text-white/60 uppercase tracking-widest mb-1">
                 {plan.name}
               </p>
 
@@ -111,13 +126,15 @@ const Pricing = () => {
                 </span>
 
                 {plan.period && (
-                  <span className="text-white/35 text-sm mb-1">
+                  <span className="text-white/60 text-sm mb-1">
                     {plan.period}
                   </span>
                 )}
               </div>
 
-              <p className="text-white/40 text-sm mt-1">{plan.desc}</p>
+              <p className="text-white/60 text-sm mt-1">
+                {plan.desc}
+              </p>
             </div>
 
             <div className="w-full h-px bg-white/10" />
@@ -143,9 +160,9 @@ const Pricing = () => {
               startPayment={startPayment}
               isPending={checkoutMutation.isPending}
             />
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 };

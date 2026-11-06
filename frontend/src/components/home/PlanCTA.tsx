@@ -1,11 +1,12 @@
+
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { plans } from "../../utils/plans";
 
-import type { CheckoutPayload, User } from "../../types";
+import type { CheckoutPayload } from "../../types";
 
 interface PlanCTAProps {
-  plan: (typeof plans)[0];
+  plan: (typeof plans)[number];
   highlight: boolean;
   startPayment: (payload: CheckoutPayload) => Promise<void>;
   isPending: boolean;
@@ -18,59 +19,55 @@ function PlanCTA({
   isPending,
 }: PlanCTAProps) {
   const { isAuth, user } = useAuth();
-
   const navigate = useNavigate();
 
-  const userSub = (user as User)?.subscription;
-
   const isPro =
-    isAuth && userSub && new Date() < new Date(userSub);
+    Boolean(isAuth && user?.subscription) &&
+    new Date(user!.subscription!) > new Date();
 
-  if (isAuth) {
-    if (plan.name === "Free") {
-      return (
-        <p className="mt-auto text-center text-xs text-white/30 py-3">
-          {isPro ? "Your previous plan" : "✔️ Currently active"}
-        </p>
-      );
+  const isFreePlan = plan.name === "Free";
+
+  if (isAuth && isFreePlan) {
+    return (
+      <p className="mt-auto py-3 text-center text-xs text-white/60">
+        {isPro ? "Your previous plan" : "✔️ Currently active"}
+      </p>
+    );
+  }
+
+  if (isAuth && isPro) {
+    return (
+      <p className="mt-auto py-3 text-center text-xs text-white/60">
+        ✔️ Already subscribed
+      </p>
+    );
+  }
+
+  const handleSubscribe = async () => {
+    if (!isAuth) {
+      navigate("/login");
+      return;
     }
 
-    if (isPro) {
-      return (
-        <p className="mt-auto text-center text-xs text-white/30 py-3">
-          ✔️ Already subscribed
-        </p>
-      );
-    }
-  }
+    const planPayload: Record<string, CheckoutPayload["plan"]> = {
+      "Pro Monthly": "monthly",
+      "Pro 6-Month": "sixmonth",
+    };
 
-  const handleSubscribe = () => {
-  if (!isAuth) {
-    navigate("/login");
-    return;
-  }
+    const selectedPlan = planPayload[plan.name];
 
-  if (plan.name === "Pro Monthly") {
-    startPayment({
-      plan: "monthly",
-    });
+    if (!selectedPlan) return;
 
-    return;
-  }
-
-  if (plan.name === "Pro 6-Month") {
-    startPayment({
-      plan: "six_month",
-    });
-  }
-};
+    await startPayment({ plan: selectedPlan });
+  };
 
   return (
     <button
-      className={`mt-auto text-center text-sm font-semibold py-3 rounded-xl transition-all duration-200 ${
+      type="button"
+      className={`mt-auto rounded-xl py-3 text-center text-sm font-semibold transition-all duration-200 ${
         highlight
           ? "btn-primary"
-          : "bg-white/6 hover:bg-white/10 border border-white/10 text-white"
+          : "border border-white/10 bg-white/6 text-white hover:bg-white/10"
       }`}
       onClick={handleSubscribe}
       disabled={isPending}

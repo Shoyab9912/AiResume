@@ -5,7 +5,7 @@ export const PAYMENT_PLANS = {
     amount: 29900,
     durationDays: 30,
   },
-  [PaymentPlan.SIX_MONTH]: {
+  [PaymentPlan.SIXMONTH]: {
     amount: 149900,
     durationDays: 180,
   },

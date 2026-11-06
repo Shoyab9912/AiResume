@@ -17,18 +17,24 @@ interface RazorpayFailureResponse {
 let razorpayScriptPromise: Promise<void> | null = null;
 
 function loadRazorpayScript(): Promise<void> {
-  if ("Razorpay" in window) return Promise.resolve();
+  if ("Razorpay" in window) {
+    return Promise.resolve();
+  }
 
   if (!razorpayScriptPromise) {
     razorpayScriptPromise = new Promise((resolve, reject) => {
       const script = document.createElement("script");
+
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
+
       script.onload = () => resolve();
+
       script.onerror = () => {
         razorpayScriptPromise = null;
         reject(new Error("Failed to load Razorpay SDK"));
       };
+
       document.body.appendChild(script);
     });
   }
@@ -38,6 +44,7 @@ function loadRazorpayScript(): Promise<void> {
 
 export const usePaymentMutations = () => {
   const queryClient = useQueryClient();
+
   const idempotencyKeyRef = useRef<string | null>(null);
 
   const checkoutMutation = useMutation<
@@ -49,66 +56,103 @@ export const usePaymentMutations = () => {
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current = crypto.randomUUID();
       }
-      return paymentApi.checkout(payload, idempotencyKeyRef.current);
+
+      return paymentApi.checkout(
+        payload,
+        idempotencyKeyRef.current
+      );
     },
+
     retry: (failureCount, error) => {
       const status = (error as { status?: number })?.status;
-      if (status && status >= 400 && status < 500) return false;
+
+      if (status && status >= 400 && status < 500) {
+        return false;
+      }
+
       return failureCount < 2;
     },
   });
 
-  const startPayment = async (payload: CheckoutPayload) => {
-    if (checkoutMutation.isPending) return;
+  const startPayment = async (
+    payload: CheckoutPayload
+  ) => {
+    if (checkoutMutation.isPending) {
+      return;
+    }
 
     try {
       await loadRazorpayScript();
     } catch {
       toast.error(
-        "Payment gateway failed to load. Please disable ad blockers and refresh.",
+        "Payment gateway failed to load. Please disable ad blockers and refresh."
       );
       return;
     }
 
     try {
-      const order = await checkoutMutation.mutateAsync(payload);
-      idempotencyKeyRef.current = null;
-     
+      const order =
+        await checkoutMutation.mutateAsync(payload);
+
       const razorpay = new window.Razorpay({
         key: order.key,
         amount: order.amount,
         currency: order.currency,
+
         name: "Nova Forge",
+
         description:
           payload.plan === "monthly"
             ? "Nova Forge AI Monthly Plan"
             : "Nova Forge Six Month Plan",
+
         order_id: order.orderId,
+
         handler: () => {
-          queryClient.invalidateQueries({ queryKey: ["authUser"] });
-          toast.success("Payment received. Confirming your subscription...");
+          toast.success(
+            "Payment received. Verifying subscription..."
+          );
+          idempotencyKeyRef.current = null;
+          setTimeout(() => {
+            queryClient.invalidateQueries({
+              queryKey: ["authUser"],
+            });
+          }, 3000);
         },
+
         modal: {
           ondismiss: () => {
-            console.log("RAZORPAY DISMISSED");
             toast("Payment cancelled");
           },
         },
-        theme: { color: "#6366f1" },
+
+        theme: {
+          color: "#6366f1",
+        },
       });
 
-      razorpay.on("payment.failed", (response: RazorpayFailureResponse) => {
-        toast.error(
-          response.error?.description || "Payment failed. Please try again.",
-        );
-      });
+      razorpay.on(
+        "payment.failed",
+        (response: RazorpayFailureResponse) => {
+          toast.error(
+            response.error?.description ??
+              "Payment failed. Please try again."
+          );
 
-      
+
+          idempotencyKeyRef.current = null;
+        }
+      );
+
       razorpay.open();
-    } catch (error: unknown) {
+    } catch (error) {
       toast.error(extractErrorMessage(error));
+      idempotencyKeyRef.current = null;
     }
   };
 
-  return { checkoutMutation, startPayment };
+  return {
+    checkoutMutation,
+    startPayment,
+  };
 };

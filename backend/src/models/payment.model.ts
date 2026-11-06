@@ -2,10 +2,11 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export enum PaymentPlan {
   MONTHLY = "monthly",
-  SIX_MONTH = "six_month",
+  SIXMONTH = "sixmonth",
 }
 
 export enum PaymentStatus {
+  INITIATING = "initiating",
   CREATED = "created",
   CAPTURED = "captured",
   FAILED = "failed",
@@ -13,13 +14,16 @@ export enum PaymentStatus {
 
 export interface IPayment extends Document {
   userId: mongoose.Types.ObjectId;
-  orderId: string;
+  orderId: string | null;
   paymentId: string | null;
   idempotencyKey: string;
-  webhookEventId: string | null | string[];
   plan: PaymentPlan;
   amount: number;
+  currency: string;
   status: PaymentStatus;
+  lockUntil?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const paymentSchema = new Schema<IPayment>(
@@ -28,52 +32,55 @@ const paymentSchema = new Schema<IPayment>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index:true
     },
-
     orderId: {
       type: String,
-      required: true,
-      unique: true,
+      default: null,
     },
-
     paymentId: {
       type: String,
       default: null,
     },
-
     idempotencyKey: {
       type: String,
       required: true,
-      unique: true,
     },
-
-    webhookEventId: {
-      type: String,
-      unique: true,
-      sparse: true,
-    },
-
     plan: {
       type: String,
       enum: Object.values(PaymentPlan),
       required: true,
     },
-
     amount: {
       type: Number,
       required: true,
     },
-
+    currency: {
+      type: String,
+      default: "INR",
+      required: true,
+    },
     status: {
       type: String,
       enum: Object.values(PaymentStatus),
-      default: PaymentStatus.CREATED,
+      default: PaymentStatus.INITIATING,
+      required: true,
+    },
+    lockUntil: {
+      type: Date,
+      default: null,
     },
   },
   {
     timestamps: true,
-  },
+  }
+);
+
+paymentSchema.index({ userId: 1, idempotencyKey: 1 }, { unique: true });
+
+
+paymentSchema.index(
+  { orderId: 1 },
+  { unique: true, partialFilterExpression: { orderId: { $type: "string" } } }
 );
 
 export const Payment = mongoose.model<IPayment>("Payment", paymentSchema);

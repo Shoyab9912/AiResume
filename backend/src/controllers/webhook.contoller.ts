@@ -11,13 +11,13 @@ import {
 } from "../utils/errors.js";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { WebhookEvent } from "../models/webhook.model.js";
 
 export const handleRazorpayWebhook = asyncHandler(
   async (req: AuthenticatedRequest, res) => {
     const signatureHeader = req.headers["x-razorpay-signature"];
     const eventIdHeader = req.headers["x-razorpay-event-id"];
 
-  
     if (!signatureHeader || Array.isArray(signatureHeader)) {
       throw new BadRequestError("Missing or invalid webhook signature.");
     }
@@ -28,94 +28,165 @@ export const handleRazorpayWebhook = asyncHandler(
     }
     const eventId: string = eventIdHeader;
 
-    const isSignatureValid = Razorpay.validateWebhookSignature(
-      JSON.stringify(req.body),
-      signature,
-      process.env.RAZORPAY_WEBHOOK_SECRET!,
-    );
-
-    if (!isSignatureValid) {
+    const rawBody = (req.body as Buffer).toString("utf8");
+    if (
+      !Razorpay.validateWebhookSignature(
+        rawBody,
+        signature,
+        process.env.RAZORPAY_WEBHOOK_SECRET!,
+      )
+    ) {
       throw new BadRequestError("Invalid webhook signature.");
     }
-
-    const event = req.body;
+    const event = JSON.parse(rawBody);
 
     if (
       event.event !== "payment.captured" &&
       event.event !== "payment.failed"
     ) {
-      return res.status(200).json(new ApiResponse(200, "", {
-        message: "Event ignored",
-      }));
+      return res.status(200).json(
+        new ApiResponse(200, "", {
+          message: "Event ignored",
+        }),
+      );
     }
 
     const razorpayPayment = event.payload?.payment?.entity;
+    const orderId: string | undefined = razorpayPayment?.order_id;
+    const paymentId: string | undefined = razorpayPayment?.id;
+
+    if (!orderId || !paymentId) {
+      throw new BadRequestError(
+        "Invalid webhook payload: missing order_id or id",
+      );
+    }
 
     const dbSession = await mongoose.startSession();
 
     try {
       await dbSession.withTransaction(async () => {
-        const payment = await Payment.findOne({
-          orderId: razorpayPayment.order_id,
+        const alreadyProcessed = await WebhookEvent.findOne({
+          eventId,
         }).session(dbSession);
 
-        if (!payment) {
+        if (alreadyProcessed) {
           return;
         }
 
-        if (payment.webhookEventId === eventId) {
-          return;
+        const payment = await Payment.findOne({ orderId }).session(dbSession);
+
+        if (!payment) {
+          throw new NotFoundError(
+            `Payment record for order ${orderId} not found yet`,
+          );
         }
+
+        await WebhookEvent.create(
+          [
+            {
+              eventId,
+              eventType: event.event,
+              orderId,
+              paymentId,
+              processedAt: new Date(),
+            },
+          ],
+          { session: dbSession },
+        );
 
         if (event.event === "payment.failed") {
-          payment.status = PaymentStatus.FAILED;
-          payment.webhookEventId = eventId;
-
-          await payment.save({ session: dbSession });
-
+          await Payment.updateOne(
+            {
+              _id: payment._id,
+              status: {
+                $in: [PaymentStatus.INITIATING, PaymentStatus.CREATED],
+              },
+            },
+            {
+              $set: { status: PaymentStatus.FAILED },
+            },
+            { session: dbSession },
+          );
           return;
         }
 
-        if (payment.status === PaymentStatus.CAPTURED) {
-          payment.webhookEventId = eventId;
-          await payment.save({ session: dbSession });
+        if (
+          Number(razorpayPayment.amount) !== Number(payment.amount) ||
+          razorpayPayment.currency !== payment.currency
+        ) {
+          throw new ConflictError("Payment amount or currency mismatch");
+        }
 
+        const capturedPayment = await Payment.findOneAndUpdate(
+          {
+            _id: payment._id,
+            status: { $ne: PaymentStatus.CAPTURED },
+          },
+          {
+            $set: {
+              status: PaymentStatus.CAPTURED,
+              paymentId,
+            },
+          },
+          { returnDocument: "after", session: dbSession },
+        );
+
+        if (!capturedPayment) {
           return;
-        }
-
-        if (razorpayPayment.amount !== payment.amount) {
-          throw new ConflictError("Payment amount mismatch");
-        }
-
-        const user = await User.findById(payment.userId).session(dbSession);
-
-        if (!user) {
-          throw new NotFoundError("User not found");
-        }
-
-        if (user.hasProAcess()) {
-          throw new ConflictError("User already has an active subscription");
         }
 
         const plan = PAYMENT_PLANS[payment.plan];
+        const durationMs = plan.durationDays * 24 * 60 * 60 * 1000;
 
-        user.subscription = new Date(
-          Date.now() + plan.durationDays * 24 * 60 * 60 * 1000,
+        const updatedUser = await User.findOneAndUpdate(
+          { _id: payment.userId },
+          [
+            {
+              $set: {
+                subscription: {
+                  $add: [
+                    {
+                      $cond: [
+                        { $gt: ["$subscription", "$$NOW"] },
+                        "$subscription",
+                        "$$NOW",
+                      ],
+                    },
+                    durationMs,
+                  ],
+                },
+              },
+            },
+          ],
+          { returnDocument: "after", session: dbSession,updatePipeline:true },
         );
 
-        payment.paymentId = razorpayPayment.id;
-        payment.status = PaymentStatus.CAPTURED;
-        payment.webhookEventId = eventId;
-
-        await user.save({ session: dbSession });
-        await payment.save({ session: dbSession });
+        if (!updatedUser) {
+          throw new NotFoundError("User not found");
+        }
       });
+    } catch (error: unknown) {
+      const mongoError = error as {
+        code?: number;
+      };
+
+      if (mongoError.code === 11000) {
+        return res.status(200).json(
+          new ApiResponse(200, "", {
+            message: "Webhook already processed",
+          }),
+        );
+      }
+
+      throw error;
     } finally {
       await dbSession.endSession();
     }
 
-    return res.status(200).json(new ApiResponse(200, "", {
-      message: "Webhook processed",
-    }));
+    return res.status(200).json(
+      new ApiResponse(200, "", {
+        message: "Webhook processed",
+      }),
+    );
   },
 );
