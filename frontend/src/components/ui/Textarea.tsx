@@ -11,7 +11,7 @@ export const Textarea = ({ label, error, className = "", ref, ...props }: Textar
   return (
     <div className="flex flex-col gap-1.5 w-full">
       {label && (
-        <label htmlFor={id} className="text-xs text-white/30 uppercase tracking-widest">
+        <label htmlFor={id} className="text-xs text-white/60 uppercase tracking-widest">
           {label}
         </label>
       )}

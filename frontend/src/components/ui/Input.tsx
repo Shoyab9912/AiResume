@@ -11,7 +11,7 @@ export const Input = ({ label, error, className = "", ref, ...props }: InputProp
   return (
     <div className={`flex flex-col gap-1.5 w-full ${className.includes('flex-1') ? 'flex-1' : ''}`}>
       {label && (
-        <label htmlFor={id} className="text-xs text-white/30 uppercase tracking-widest">
+        <label htmlFor={id} className="text-xs text-white/60 uppercase tracking-widest">
           {label}
         </label>
       )}

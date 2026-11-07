@@ -1,19 +1,23 @@
+
 @import "tailwindcss";
 
 @layer base {
   * {
     @apply box-border m-0 p-0;
   }
+
   body {
     font-family: "Space Grotesk", sans-serif;
     @apply bg-[#050505] text-[#ededed] antialiased;
   }
+
   h1,
   h2,
   h3 {
     font-family: "JetBrains Mono", monospace;
     font-weight: 700;
   }
+
   html {
     scroll-behavior: smooth;
   }
@@ -22,8 +26,11 @@
 @layer components {
   .bg-page {
     @apply min-h-screen bg-[#050505] relative z-0;
-    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+
     background-size: 40px 40px;
   }
 
@@ -34,18 +41,20 @@
 
   .btn-primary {
     @apply bg-[#00e5ff] text-black font-bold cursor-pointer rounded-none
-           hover:-translate-y-1 hover:translate-x-1 active:translate-y-0 active:translate-x-0
-           transition-transform duration-200 border-2 border-transparent 
-           hover:border-[#00e5ff] hover:bg-[#050505] hover:text-[#00e5ff];
+      hover:-translate-y-1 hover:translate-x-1
+      active:translate-y-0 active:translate-x-0
+      transition-transform duration-200 border-2 border-transparent
+      hover:border-[#00e5ff] hover:bg-[#050505] hover:text-[#00e5ff];
+
     box-shadow: -4px 4px 0px rgba(0, 229, 255, 0.15);
   }
 
   .btn-google {
     @apply flex items-center justify-center gap-3 w-full px-6 py-3.5
-           bg-transparent hover:bg-[#111] active:bg-[#0a0a0a]
-           border-2 border-[#333] hover:border-[#666]
-           rounded-none text-white font-mono text-[13px] uppercase tracking-widest
-           transition-all duration-200 cursor-pointer select-none;
+      bg-transparent hover:bg-[#111] active:bg-[#0a0a0a]
+      border-2 border-[#333] hover:border-[#666]
+      rounded-none text-white font-mono text-[13px] uppercase tracking-widest
+      transition-all duration-200 cursor-pointer select-none;
   }
 
   .text-gradient {
@@ -62,16 +71,20 @@
   }
 
   .feature-pill {
-    @apply flex items-center gap-2 text-xs font-mono text-[#00e5ff] bg-[#00e5ff]/10
-           border-2 border-[#00e5ff]/30 rounded-none px-3 py-1 uppercase tracking-wider;
+    @apply flex items-center gap-2 text-xs font-mono text-[#00e5ff]
+      bg-[#00e5ff]/10 border-2 border-[#00e5ff]/30
+      rounded-none px-3 py-1 uppercase tracking-wider;
   }
 
   .input-field {
-    @apply w-full bg-[#050505] border-2 border-[#1a1a1a] rounded-none px-4 py-3
-           text-sm text-white placeholder:text-zinc-600 outline-none
-           focus:border-[#00e5ff] focus:bg-[#0a0a0a] transition-colors duration-150;
+    @apply w-full bg-[#050505] border-2 border-[#1a1a1a]
+      rounded-none px-4 py-3 text-sm text-white
+      placeholder:text-zinc-600 outline-none
+      focus:border-[#00e5ff] focus:bg-[#0a0a0a]
+      transition-colors duration-150;
   }
 }
+
 
 @keyframes fadeIn {
   0% {
@@ -83,6 +96,7 @@
     filter: grayscale(0%) blur(0);
   }
 }
+
 @keyframes slideUp {
   0% {
     opacity: 0;
@@ -93,9 +107,11 @@
     transform: translateY(0) scale(1);
   }
 }
+
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out forwards;
 }
+
 .animate-slide-up {
   animation: slideUp 0.5s cubic-bezier(0, 0.7, 0.1, 1) forwards;
 }
