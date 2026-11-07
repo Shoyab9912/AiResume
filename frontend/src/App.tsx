@@ -4,7 +4,7 @@ import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import PublicRoute from "./components/auth/PublicRoute";
 
-import { ErrorBoundary } from "./components/Errorboundary";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DefaultFallback } from "./components/DefaultFallback";
 
 import Home from "./pages/Home";

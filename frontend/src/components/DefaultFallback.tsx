@@ -1,4 +1,4 @@
-import type { FallbackProps } from './Errorboundary';
+import type { FallbackProps } from './ErrorBoundary';
 import { ErrorAlert } from "./ui/Feedback";
 
 export const DefaultFallback = ({ error, onRetry }: FallbackProps) => (
