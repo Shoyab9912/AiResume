@@ -1,5 +1,12 @@
 import { CheckCircle2, Star } from "lucide-react";
 import { Features as features } from "../../utils/features"; 
+import { motion } from "motion/react";
+import {
+  fadeUpContainer,
+  fadeUpItem,
+} from "../../utils/animations";
+
+
 function Features() {
   return (
     <section id="features" className="py-24 px-6 md:px-12 max-w-7xl mx-auto">
@@ -13,17 +20,25 @@ function Features() {
         >
           Four tools. One <span className="text-gradient">career leap.</span>
         </h2>
-        <p className="text-white/40 mt-4 max-w-xl mx-auto">
+        <p className="text-white/60 mt-4 max-w-xl mx-auto">
           From your resume to the offer letter, we've got every step covered.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+     <motion.div
+  className="grid md:grid-cols-2 gap-6"
+  variants={fadeUpContainer}
+  initial="hidden"
+  whileInView="visible"
+  viewport={{ once: true, amount: 0.2 }}
+>
         {features.map(({ icon: Icon, color, glow, title, desc, bullets }) => (
-          <div
-            key={title}
-            className="glass-card p-8 flex flex-col gap-5 group hover:border-white/20 transition-all duration-300"
-          >
+        <motion.div
+      key={title}
+      variants={fadeUpItem}
+      whileHover={{ y: -5 }}
+      className="glass-card p-8 flex flex-col gap-5 group hover:border-white/20 transition-all duration-300"
+    >
             <div
               className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-xl ${glow}`}
             >
@@ -36,7 +51,7 @@ function Features() {
               >
                 {title}
               </h3>
-              <p className="text-white/45 text-sm leading-relaxed">{desc}</p>
+              <p className="text-white/60 text-sm leading-relaxed">{desc}</p>
             </div>
             <ul className="flex flex-col gap-2 mt-auto">
               {bullets.map((b) => (
@@ -52,9 +67,9 @@ function Features() {
                 </li>
               ))}
             </ul>
-          </div>
+         </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 }

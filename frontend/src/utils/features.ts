@@ -7,7 +7,7 @@ export const Features = [
     bullets: ["ATS score out of 100", "Strengths & weaknesses breakdown", "Keyword gap analysis", "Section-by-section feedback"] },
   { icon: Briefcase, color: "from-emerald-500 to-teal-400", glow: "shadow-emerald-500/20",
     title: "Smart Job Matcher",
-    desc: "After analysing your resume, CareerAI matches you with roles that actually fit your skills and experience — no more applying blindly and wondering why you hear nothing back.",
+    desc: "After analysing your resume, Nova Forge matches you with roles that actually fit your skills and experience — no more applying blindly and wondering why you hear nothing back.",
     bullets: ["Personalised job recommendations", "Match % per role", "Skill gap for each job", "One-click apply guidance"] },
   { icon: FileEdit, color: "from-pink-500 to-rose-400", glow: "shadow-pink-500/20",
     title: "AI Resume Creator",
