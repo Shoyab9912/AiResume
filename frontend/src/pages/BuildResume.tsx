@@ -1,118 +1,139 @@
 import { useState } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useIsMutating } from "@tanstack/react-query";
-import { FilePlus } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useToolForm } from "../hooks/useToolForm";
 import { useAiMutations, AI_QUERY_KEYS } from "../hooks/useAiMutations";
 import { useCachedResult } from "../hooks/useCachedResult";
-import type { BuildResumePayload } from "../hooks/useAiMutations";
-import { toBase64 } from "../utils/file";
-import type { Experience, Education, Project, ResumeData } from "../types";
-import { BasicsForm } from "../components/resume/BasicForm";
-import { ExperienceForm } from "../components/resume/ExperienceForm";
-import { EducationForm } from "../components/resume/EducationForm";
-import { SkillsAndProjectsForm } from "../components/resume/SkillsAndProject";
-import { ResumePreview } from "../components/resume/ResumePreview";
-import { Dropzone } from "../components/ui/Dropzone";
-import { LoadingState, ErrorAlert } from "../components/ui/Feedback";
+import { extractPdfText } from "../utils/file";
 import { extractErrorMessage } from "../utils/error";
+import { Dropzone } from "../components/ui/Dropzone";
+import { ErrorAlert } from "../components/ui/Feedback";
+import { PersonalSection } from "../components/resume/PersonalSection";
+import { SkillsSection } from "../components/resume/SkillsSection";
+import { ProjectsSection } from "../components/resume/ProjectsSection";
+import { ExperienceSection } from "../components/resume/ExperienceSection";
+import { EducationSection } from "../components/resume/EducationSection";
+import { ResumePreview } from "../components/resume/ResumePreview";
+import { ResumeSkeleton } from "../components/resume/ResumeSkeleton";
 
-const createEmptyExperience = (): Experience => ({
-  title: "", company: "", location: "", startDate: "", endDate: "", bullets: [""],
+
+
+import type { ResumeData, ResumeFormData, BuildResumePayload } from "../types";
+
+const buildResumeFormSchema = z.object({
+  name: z.string().trim().min(2, "Full name is required"),
+  email: z.string().trim().email("Valid email is required"),
+  phone: z.string().trim().min(6, "Phone number is required"),
+  location: z.string().trim().min(2, "Location is required"),
+  linkedin: z.string().trim().optional().default(""),
+  summary: z.string().trim().min(10, "Brief summary or target role is required"),
+  technicalSkills: z
+    .string()
+    .trim()
+    .min(2, "Enter at least one technical skill"),
+  softSkills: z.string().trim().optional().default(""),
+  certifications: z.string().trim().optional().default(""),
+  experience: z.array(
+    z.object({
+      title: z.string().trim().min(1, "Job title is required"),
+      company: z.string().trim().min(1, "Company is required"),
+      location: z.string().trim().min(1, "Location is required"),
+      startDate: z.string().trim().min(1, "Start date is required"),
+      endDate: z.string().trim().min(1, "End date is required"),
+      bulletsText: z.string().trim().min(5, "Add at least one achievement"),
+    })
+  ),
+  education: z
+    .array(
+      z.object({
+        degree: z.string().trim().min(1, "Degree is required"),
+        school: z.string().trim().min(1, "School / College is required"),
+        location: z.string().trim().min(1, "Location is required"),
+        year: z.string().trim().min(1, "Year is required"),
+        gpa: z.string().trim().optional(),
+      })
+    )
+    .min(1, "Add at least one education entry"),
+  projects: z.array(
+    z.object({
+      name: z.string().trim().min(1, "Project name is required"),
+      link: z.string().trim().optional(),
+      bulletsText: z.string().trim().min(5, "Add project highlights"),
+    })
+  ),
 });
-const createEmptyEducation = (): Education => ({
-  degree: "", school: "", location: "", year: "", gpa: "",
-});
-const createEmptyProject = (): Project => ({ name: "", link: "", bullets: [""] });
+
+type BuildResumeFormValues = z.input<typeof buildResumeFormSchema>;
+
+const splitComma = (val?: string) =>
+  (val ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+const splitLines = (val?: string) =>
+  (val ?? "")
+    .split("\n")
+    .map((s) => s.replace(/^[-•*]\s*/, "").trim())
+    .filter(Boolean);
 
 const BuildResume = () => {
-  const { mode, setMode, file, error, setError, fileRef, getDropzoneProps, handleFileChange } =
-    useToolForm();
-  const { buildResumeMutation } = useAiMutations();
-  const { mutate } = buildResumeMutation;
-  const isPending = useIsMutating({ mutationKey: AI_QUERY_KEYS.builtResume }) > 0;
-  const { result, clearResult } = useCachedResult<ResumeData>(AI_QUERY_KEYS.builtResume);
+  const {
+    mode,
+    setMode,
+    file,
+    error,
+    setError,
+    fileRef,
+    handleFileChange,
+    getDropzoneProps,
+  } = useToolForm();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [basics, setBasics] = useState({ name: "", email: "", phone: "", location: "", linkedin: "" });
-  const [summary, setSummary] = useState("");
-  const [experience, setExperience] = useState<Experience[]>([createEmptyExperience()]);
-  const [education, setEducation] = useState<Education[]>([createEmptyEducation()]);
-  const [techSkills, setTechSkills] = useState("");
-  const [softSkills, setSoftSkills] = useState("");
-  const [projects, setProjects] = useState<Project[]>([createEmptyProject()]);
-  const [certifications, setCertifications] = useState("");
+  const { buildResumeMutation } = useAiMutations();
+  const { mutate } = buildResumeMutation;
+  const isPending =
+    useIsMutating({ mutationKey: AI_QUERY_KEYS.builtResume }) > 0;
+  const { result, clearResult } = useCachedResult<ResumeData>(
+    AI_QUERY_KEYS.builtResume,
+  );
+  const isBusy = isSubmitting || isPending;
 
-  const updateExperienceField = <K extends keyof Experience>(index: number, key: K, value: Experience[K]) => {
-    setExperience((prev) => prev.map((exp, idx) => (idx === index ? { ...exp, [key]: value } : exp)));
-  };
+  const methods = useForm<BuildResumeFormValues>({
+    resolver: zodResolver(buildResumeFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      location: "",
+      linkedin: "",
+      summary: "",
+      technicalSkills: "",
+      softSkills: "",
+      certifications: "",
+      experience: [],
+      education: [{ degree: "", school: "", location: "", year: "", gpa: "" }],
+      projects: [{ name: "", link: "", bulletsText: "" }],
+    },
+  });
 
-  const updateExperienceBullet = (experienceIndex: number, bulletIndex: number, value: string) => {
-    setExperience((prev) =>
-      prev.map((exp, i) =>
-        i === experienceIndex
-          ? { ...exp, bullets: exp.bullets.map((bullet, j) => (j === bulletIndex ? value : bullet)) }
-          : exp,
-      ),
-    );
-  };
-
-  const updateEducationField = (index: number, key: keyof Education, value: string) => {
-    setEducation((prev) => prev.map((edu, idx) => (idx === index ? { ...edu, [key]: value } : edu)));
-  };
-
-  const updateProjectField = <K extends keyof Project>(index: number, key: K, value: Project[K]) => {
-    setProjects((prev) => prev.map((proj, idx) => (idx === index ? { ...proj, [key]: value } : proj)));
-  };
-
-  const updateProjectBullet = (projectIndex: number, bulletIndex: number, value: string) => {
-    setProjects((prev) =>
-      prev.map((proj, i) =>
-        i === projectIndex
-          ? { ...proj, bullets: proj.bullets.map((bullet, j) => (j === bulletIndex ? value : bullet)) }
-          : proj,
-      ),
-    );
-  };
-
-  async function handleSubmit() {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
+  async function handleImproveSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (isBusy) return;
     setError("");
+    setIsSubmitting(true);
     clearResult();
 
-    if (mode === "improve" && !file) {
+    if (!file) {
       setIsSubmitting(false);
-      return setError("Please upload your resume pdf.");
+      return setError("Please upload your existing resume PDF to improve.");
     }
-    if (mode === "manual" && !basics.name.trim()) {
-      setIsSubmitting(false);
-      return setError("Please Enter your name");
-    }
-
-    const cleanedExperience = experience.filter((exp) => exp.title.trim() !== "" || exp.company.trim() !== "");
-    const cleanedEducation = education.filter((edu) => edu.degree.trim() !== "" || edu.school.trim() !== "");
-    const cleanedProjects = projects.filter((proj) => proj.name.trim() !== "");
 
     try {
-      const payload: BuildResumePayload =
-        mode === "manual"
-          ? {
-              mode: "manual",
-              formData: {
-                ...basics,
-                summary,
-                experience: cleanedExperience,
-                education: cleanedEducation,
-                skills: {
-                  technical: techSkills.split(",").map((s) => s.trim()).filter(Boolean),
-                  soft: softSkills.split(",").map((s) => s.trim()).filter(Boolean),
-                },
-                projects: cleanedProjects,
-                certifications: certifications.split(",").map((s) => s.trim()).filter(Boolean),
-              },
-            }
-          : { mode: "improve", pdfBase64: await toBase64(file!) };
-
+      const resumeText = await extractPdfText(file);
+      const payload: BuildResumePayload = { mode: "improve", resumeText };
       mutate(payload, {
         onError: (err) => setError(extractErrorMessage(err)),
         onSettled: () => setIsSubmitting(false),
@@ -123,113 +144,141 @@ const BuildResume = () => {
     }
   }
 
+  function onManualSubmit(values: BuildResumeFormValues) {
+    if (isBusy) return;
+    setError("");
+    setIsSubmitting(true);
+    clearResult();
+
+    const formData: ResumeFormData = {
+      name: values.name,
+      email: values.email,
+      phone: values.phone,
+      location: values.location,
+      linkedin: values.linkedin ?? "",
+      summary: values.summary,
+      skills: {
+        technical: splitComma(values.technicalSkills),
+        soft: splitComma(values.softSkills),
+      },
+      education: values.education.map((edu) => ({
+        degree: edu.degree,
+        school: edu.school,
+        location: edu.location,
+        year: edu.year,
+        ...(edu.gpa ? { gpa: edu.gpa } : {}),
+      })),
+      experience: values.experience.map((exp) => ({
+        title: exp.title,
+        company: exp.company,
+        location: exp.location,
+        startDate: exp.startDate,
+        endDate: exp.endDate,
+        bullets: splitLines(exp.bulletsText),
+      })),
+      projects: values.projects.map((proj) => ({
+        name: proj.name,
+        ...(proj.link ? { link: proj.link } : {}),
+        bullets: splitLines(proj.bulletsText),
+      })),
+      certifications: splitComma(values.certifications),
+    };
+
+    mutate(
+      { mode: "manual", formData },
+      {
+        onError: (err) => setError(extractErrorMessage(err)),
+        onSettled: () => setIsSubmitting(false),
+      }
+    );
+  }
+
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
-      <div className="max-w-3xl mx-auto flex flex-col gap-6">
-        <div className="glass-card p-1.5 flex gap-1.5">
-          {(["manual", "improve"] as const).map((m) => (
-            <button
-              key={m}
-              disabled={isPending}
-              onClick={() => {
-                if(isPending) return;
-                setMode(m);
-                clearResult();
-                setError("");
-              }}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 capitalize ${
-                mode === m ? "btn-primary" : "text-white/40 hover:text-white/70"
-              }`}
-            >
-              {m === "manual" ? "Build from Scratch" : "Improve Existing Resume"}
-            </button>
-          ))}
+      <div className="max-w-3xl mx-auto flex flex-col gap-5">
+        {/* Mode Switcher */}
+        <div className="glass-card p-1.5 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => {
+              setMode("manual");
+              setError("");
+              clearResult();
+            }}
+            className={`py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              mode === "manual"
+                ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                : "text-white/50 hover:text-white/80"
+            }`}
+          >
+            Build From Scratch
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => {
+              setMode("improve");
+              setError("");
+              clearResult();
+            }}
+            className={`py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              mode === "improve"
+                ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                : "text-white/50 hover:text-white/80"
+            }`}
+          >
+            Improve Existing Resume PDF
+          </button>
         </div>
 
-        {mode === "manual" && (
-          <>
-            <BasicsForm
-              basics={basics}
-              summary={summary}
-              onChangeBasics={(k, v) => setBasics((p) => ({ ...p, [k]: v }))}
-              onChangeSummary={setSummary}
+        {mode === "improve" ? (
+          <form onSubmit={handleImproveSubmit} className="flex flex-col gap-4">
+            <Dropzone
+              file={file}
+              loading={isBusy}
+              fileRef={fileRef}
+              getDropzoneProps={() => getDropzoneProps(isBusy)}
+              handleFileChange={handleFileChange}
             />
+            <ErrorAlert message={error} />
+            {!isBusy && (
+              <button
+                type="submit"
+                className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/20"
+              >
+                <Sparkles size={16} /> Rewrite & Optimize Resume with AI
+              </button>
+            )}
+          </form>
+        ) : (
+          <FormProvider {...methods}>
+            <form
+              onSubmit={methods.handleSubmit(onManualSubmit)}
+              className="flex flex-col gap-5"
+            >
+              <PersonalSection />
+              <SkillsSection />
+              <ProjectsSection />
+              <ExperienceSection />
+              <EducationSection />
 
-            <ExperienceForm
-              experience={experience}
-              onUpdateExp={updateExperienceField}
-              onUpdateBullet={updateExperienceBullet}
-              onAddExp={() => setExperience((prev) => [...prev, createEmptyExperience()])}
-              onRemoveExp={(index) => setExperience((prev) => prev.filter((_, idx) => idx !== index))}
-              onAddBullet={(experienceIndex) =>
-                updateExperienceField(experienceIndex, "bullets", [...experience[experienceIndex].bullets, ""])
-              }
-              onRemoveBullet={(experienceIndex, bulletIndex) =>
-                updateExperienceField(
-                  experienceIndex,
-                  "bullets",
-                  experience[experienceIndex].bullets.filter((_, j) => j !== bulletIndex),
-                )
-              }
-            />
+              <ErrorAlert message={error} />
 
-            <EducationForm
-              education={education}
-              onUpdateEdu={updateEducationField}
-              onAddEdu={() => setEducation((prev) => [...prev, createEmptyEducation()])}
-              onRemoveEdu={(index) => setEducation((prev) => prev.filter((_, idx) => idx !== index))}
-            />
-
-            <SkillsAndProjectsForm
-              techSkills={techSkills}
-              softSkills={softSkills}
-              projects={projects}
-              certs={certifications}
-              onChangeTech={setTechSkills}
-              onChangeSoft={setSoftSkills}
-              onChangeCerts={setCertifications}
-              onUpdateProj={updateProjectField}
-              onUpdateProjBullet={updateProjectBullet}
-              onAddProj={() => setProjects((prev) => [...prev, createEmptyProject()])}
-              onRemoveProj={(index) => setProjects((prev) => prev.filter((_, idx) => idx !== index))}
-              onAddProjBullet={(projectIndex) =>
-                updateProjectField(projectIndex, "bullets", [...projects[projectIndex].bullets, ""])
-              }
-              onRemoveProjBullet={(projectIndex, bulletIndex) =>
-                updateProjectField(
-                  projectIndex,
-                  "bullets",
-                  projects[projectIndex].bullets.filter((_, j) => j !== bulletIndex),
-                )
-              }
-            />
-          </>
+              {!isBusy && (
+                <button
+                  type="submit"
+                  className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/20"
+                >
+                  <Sparkles size={16} /> Generate ATS-Optimized Resume
+                </button>
+              )}
+            </form>
+          </FormProvider>
         )}
 
-        {mode === "improve" && (
-          <Dropzone
-            file={file}
-            loading={isPending}
-            fileRef={fileRef}
-            getDropzoneProps={() => getDropzoneProps(isPending)}
-            handleFileChange={handleFileChange}
-          />
-        )}
-
-        <ErrorAlert message={error} />
-
-        {!isSubmitting && !isPending && (
-          <button
-            onClick={handleSubmit}
-            className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <FilePlus size={16} /> {mode === "manual" ? "Build my Resume" : "Improve My Resume"}
-          </button>
-        )}
-
-        {(isSubmitting || isPending) && <LoadingState message="Building your ATS optimized resume..." />}
-
-        {result && !isPending && <ResumePreview result={result} />}
+       {isBusy && <ResumeSkeleton />}
+        {result && !isBusy && <ResumePreview result={result} />}
       </div>
     </div>
   );
