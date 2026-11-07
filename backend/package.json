@@ -2,7 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
@@ -14,8 +14,6 @@
   "type": "module",
   "dependencies": {
     "@google/genai": "^2.20.0",
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
     "bcrypt": "^6.0.0",
     "bullmq": "^6.5.3",
     "cookie-parser": "^1.4.7",
@@ -34,6 +32,8 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
