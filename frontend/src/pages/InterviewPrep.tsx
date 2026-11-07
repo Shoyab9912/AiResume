@@ -1,61 +1,45 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useIsMutating } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import {
+  MessageSquare,
   ChevronDown,
   ChevronUp,
-  Code2,
-  Download,
+  Sparkles,
   Lightbulb,
+  Code2,
   Users,
+  Download,
+  Loader2,
 } from "lucide-react";
-import type { Question, InterviewData } from "../types";
-import { toBase64 } from "../utils/file";
-import { downloadInterview } from "../utils/resume";
-import { extractErrorMessage } from "../utils/error";
 import { useToolForm } from "../hooks/useToolForm";
 import { useAiMutations, AI_QUERY_KEYS } from "../hooks/useAiMutations";
 import { useCachedResult } from "../hooks/useCachedResult";
-import type { InterviewPayload } from "../hooks/useAiMutations";
-import { InterviewManualInputForm } from "../components/InterviewManualInputForm";
+import { extractPdfText } from "../utils/file";
+import { extractErrorMessage } from "../utils/error";
 import { Dropzone } from "../components/ui/Dropzone";
-import { ErrorAlert, LoadingState } from "../components/ui/Feedback";
+import { ErrorAlert } from "../components/ui/Feedback";
+import { InterviewSkeleton } from "../components/ui/InterviewSkeleton";
+import { Input } from "../components/ui/Input";
+import { Textarea } from "../components/ui/Textarea";
+import { downloadInterview } from "../utils/interview";
+import type { InterviewData, GenerateInterviewPayload } from "../types";
 
-function QCard({ q }: { q: Question }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="glass-card overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-start justify-between gap-4 py-4 px-5 text-left hover:bg-white/2 transition-colors"
-      >
-        <div className="flex gap-3 items-start">
-          <span className="text-xs font-bold text-indigo-400 mt-0.5">
-            Q{q.id}
-          </span>
-          <div>
-            <p className="text-sm text-white/80 leading-relaxed">
-              {q.question}
-            </p>
-            <span className="text-[10px] text-white/25 uppercase tracking-widest mt-1 block">
-              {q.category}
-            </span>
-          </div>
-        </div>
-        {open ? (
-          <ChevronUp size={14} className="text-white/30 shrink-0 mt-1" />
-        ) : (
-          <ChevronDown size={14} className="text-white/30 shrink-0 mt-1" />
-        )}
-        {open && (
-          <div className="px-5 pb-4 flex items-start gap-2 border-t border-white/6 pt-3">
-            <Lightbulb size={13} className="text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-white/45 leading-relaxed">{q.hint}</p>
-          </div>
-        )}
-      </button>
-    </div>
-  );
-}
+const interviewFormSchema = z.object({
+  skills: z
+    .string()
+    .trim()
+    .min(2, "Please enter target skills (e.g. Node.js, React)"),
+  experience: z
+    .string()
+    .trim()
+    .min(5, "Please enter your experience level or role context"),
+});
+
+type InterviewFormValues = z.infer<typeof interviewFormSchema>;
 
 const InterviewPrep = () => {
   const {
@@ -68,7 +52,11 @@ const InterviewPrep = () => {
     handleFileChange,
     getDropzoneProps,
   } = useToolForm();
-  const [round, setRound] = useState<"hr" | "technical">("hr");
+
+  const [round, setRound] = useState<"technical" | "hr">("technical");
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const { interviewMutation } = useAiMutations();
   const { mutate } = interviewMutation;
@@ -77,41 +65,80 @@ const InterviewPrep = () => {
   const { result, clearResult } = useCachedResult<InterviewData>(
     AI_QUERY_KEYS.interviewQuestions,
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(
-    submittedSkills?: string,
-    submittedExperience?: string,
-  ) {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
+  const isBusy = isSubmitting || isPending;
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<InterviewFormValues>({
+    resolver: zodResolver(interviewFormSchema),
+    defaultValues: {
+      skills: "",
+      experience: "",
+    },
+  });
+
+  async function handleExport() {
+    if (!result || exporting) return;
+    setExporting(true);
+    try {
+      await downloadInterview(result);
+    } catch {
+      toast.error("Could not generate the PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function onManualSubmit(values: InterviewFormValues) {
+    if (isBusy) return;
     setError("");
+    setIsSubmitting(true);
     clearResult();
 
-    if (
-      mode === "manual" &&
-      (!submittedSkills?.trim() || !submittedExperience?.trim())
-    ) {
-      setIsSubmitting(false);
-      return setError("Please add your skills and experience.");
-    }
-    if (mode === "resume" && !file) {
+    const payload: GenerateInterviewPayload = {
+      mode: "manual",
+      round,
+      skills: values.skills,
+      experience: values.experience,
+    };
+
+    mutate(payload, {
+      onSuccess: (data) => {
+        setOpenId(data.questions[0]?.id ?? null);
+      },
+      onError: (err) => setError(extractErrorMessage(err)),
+      onSettled: () => setIsSubmitting(false),
+    });
+  }
+
+  async function handleResumeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (isBusy) return;
+
+    setError("");
+    setIsSubmitting(true);
+    clearResult();
+
+    if (!file) {
       setIsSubmitting(false);
       return setError("Please upload your resume PDF.");
     }
 
     try {
-      const payload: InterviewPayload =
-        mode === "manual"
-          ? {
-              mode: "manual",
-              round,
-              skills: submittedSkills!,
-              experience: submittedExperience!,
-            }
-          : { mode: "resume", round, pdfBase64: await toBase64(file!) };
+      const resumeText = await extractPdfText(file);
+      const payload: GenerateInterviewPayload = {
+        mode: "resume",
+        round,
+        resumeText,
+      };
 
       mutate(payload, {
+        onSuccess: (data) => {
+          setOpenId(data.questions[0]?.id ?? null);
+        },
         onError: (err) => setError(extractErrorMessage(err)),
         onSettled: () => setIsSubmitting(false),
       });
@@ -123,101 +150,240 @@ const InterviewPrep = () => {
 
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
-      <div className="max-w-3xl mx-auto flex flex-col gap-4">
-        <div className="glass-card p-1.5 flex gap-1.5">
-          {(["manual", "resume"] as const).map((m) => (
+      <div className="max-w-3xl mx-auto flex flex-col gap-5">
+        {/* Top Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="glass-card p-1.5 grid grid-cols-2 gap-1.5">
             <button
-              key={m}
-              disabled={isPending}
+              type="button"
+              disabled={isBusy}
               onClick={() => {
-               if(isPending) return; 
-                setMode(m);
-                clearResult();
+                setMode("manual");
                 setError("");
-              }}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 capitalize ${
-                mode === m ? "btn-primary" : "text-white/40 hover:text-white/70"
-              }`}
-            >
-              {m === "manual" ? "Enter Skills Manually" : "Upload Resume"}
-            </button>
-          ))}
-        </div>
-
-        <div className="glass-card p-1.5 flex gap-1.5">
-          {[
-            { key: "hr", label: "HR Round", Icon: Users },
-            { key: "technical", label: "Technical Round", Icon: Code2 },
-          ].map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              disabled={isPending}
-              onClick={() => {
-                if(isPending) return;
-                setRound(key as "hr" | "technical");
                 clearResult();
               }}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 ${
-                round === key
-                  ? "btn-primary"
-                  : "text-white/40 hover:text-white/70"
+              className={`py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                mode === "manual"
+                  ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                  : "text-white/50 hover:text-white/80"
               }`}
             >
-              <Icon size={14} /> {label}
+              Manual Input
             </button>
-          ))}
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => {
+                setMode("resume");
+                setError("");
+                clearResult();
+              }}
+              className={`py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                mode === "resume"
+                  ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+            >
+              From Resume PDF
+            </button>
+          </div>
+
+          <div className="glass-card p-1.5 grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => {
+                setRound("technical");
+                clearResult();
+              }}
+              className={`py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                round === "technical"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+            >
+              <Code2 size={14} /> Technical Round
+            </button>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => {
+                setRound("hr");
+                clearResult();
+              }}
+              className={`py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                round === "hr"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+            >
+              <Users size={14} /> HR & Behavioral
+            </button>
+          </div>
         </div>
 
-        {mode === "manual" && (
-          <InterviewManualInputForm onSubmit={handleSubmit} />
-        )}
+        {/* Form */}
+        {mode === "resume" ? (
+          <form onSubmit={handleResumeSubmit} className="flex flex-col gap-4">
+            <Dropzone
+              file={file}
+              loading={isBusy}
+              fileRef={fileRef}
+              getDropzoneProps={() => getDropzoneProps(isBusy)}
+              handleFileChange={handleFileChange}
+            />
 
-        {mode === "resume" && (
-          <Dropzone
-            file={file}
-            loading={isPending}
-            fileRef={fileRef}
-            getDropzoneProps={() => getDropzoneProps(isPending)}
-            handleFileChange={handleFileChange}
-          />
-        )}
+            <ErrorAlert message={error} />
 
-        <ErrorAlert message={error} />
-
-        {mode === "resume" && !isSubmitting && !isPending && (
-          <button
-            onClick={() => handleSubmit()}
-            className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+            {!isBusy && (
+              <button
+                type="submit"
+                className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/20"
+              >
+                <Sparkles size={16} /> Generate{" "}
+                {round === "technical" ? "Technical" : "HR"} Questions
+              </button>
+            )}
+          </form>
+        ) : (
+          <form
+            onSubmit={handleSubmit(onManualSubmit)}
+            className="flex flex-col gap-4"
           >
-            <Code2 size={16} /> Get Interview Questions
-          </button>
+            <div className="glass-card p-6 flex flex-col gap-4">
+              <Input
+                label="Target Skills / Tech Stack"
+                disabled={isBusy}
+                {...register("skills")}
+                placeholder="e.g. Node.js, Express, React, MongoDB, Redis, TypeScript"
+                error={errors.skills?.message}
+              />
+
+              <Textarea
+                label="Experience Level & Role Context"
+                rows={3}
+                disabled={isBusy}
+                {...register("experience")}
+                placeholder="e.g. Full-Stack MERN Developer interviewing for product-based software roles..."
+                error={errors.experience?.message}
+                className="resize-none overflow-hidden"
+                onInput={(e) => {
+                  const target = e.currentTarget;
+                  target.style.height = "auto";
+                  target.style.height = `${target.scrollHeight}px`;
+                }}
+              />
+            </div>
+
+            <ErrorAlert message={error} />
+
+            {!isBusy && (
+              <button
+                type="submit"
+                className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/20"
+              >
+                <Sparkles size={16} /> Generate{" "}
+                {round === "technical" ? "Technical" : "HR"} Questions
+              </button>
+            )}
+          </form>
         )}
 
-        {(isSubmitting || isPending) && (
-          <LoadingState message="Getting Interview Questions..." />
-        )}
+        {/* Skeleton Loader */}
+        {isBusy && <InterviewSkeleton />}
 
-        {result && !isPending && (
-          <div className="flex flex-col gap-4 animate-fade-in">
+        {/* Results */}
+        {result && !isBusy && (
+          <div className="flex flex-col gap-4 animate-fade-in mt-2">
             <div className="glass-card p-5 flex items-center justify-between flex-wrap gap-3">
               <div>
-                <p className="font-semibold text-white">{result.role}</p>
-                <p className="text-white/40 text-sm mt-0.5">
-                  {result.round === "hr" ? "HR Round" : "Technical Round"} •{" "}
-                  {result.questions.length} questions
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <MessageSquare size={16} className="text-indigo-400" />
+                  {result.role} •{" "}
+                  <span className="capitalize text-indigo-300">
+                    {result.round} Round
+                  </span>
+                </h3>
+                <p className="text-xs text-white/60 mt-0.5">
+                  Click any question to view hints and preparation strategy
                 </p>
               </div>
+
               <button
-                onClick={() => downloadInterview(result)}
-                className="feature-pill gap-2 cursor-pointer hover:border-white/20 transition-colors"
+                type="button"
+                onClick={handleExport}
+                disabled={exporting}
+                className="px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Download size={11} /> Download PDF
+                {exporting ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Preparing...
+                  </>
+                ) : (
+                  <>
+                    <Download size={14} /> Export PDF
+                  </>
+                )}
               </button>
             </div>
 
-            {result.questions.map((q) => (
-              <QCard key={q.id} q={q} />
-            ))}
+            {result.questions.map((q, index) => {
+              const isOpen = openId === q.id;
+              return (
+                <div
+                  key={q.id}
+                  className="glass-card overflow-hidden border border-white/8 transition-all"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(isOpen ? null : q.id)}
+                    className="w-full p-5 flex items-start justify-between gap-4 text-left hover:bg-white/2 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-indigo-500/15 text-indigo-300 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {index + 1}
+                      </span>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-sm font-semibold text-white/90 leading-snug">
+                          {q.question}
+                        </p>
+                        <span className="text-[11px] text-indigo-300/70 font-medium">
+                          {q.category}
+                        </span>
+                      </div>
+                    </div>
+                    {isOpen ? (
+                      <ChevronUp
+                        size={18}
+                        className="text-white/60 shrink-0 mt-1"
+                      />
+                    ) : (
+                      <ChevronDown
+                        size={18}
+                        className="text-white/60 shrink-0 mt-1"
+                      />
+                    )}
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-5 pb-5 pt-2 border-t border-white/5 bg-white/[0.01]">
+                      <div className="p-3.5 rounded-xl bg-indigo-500/8 border border-indigo-500/15 flex items-start gap-2.5">
+                        <Lightbulb
+                          size={16}
+                          className="text-indigo-400 shrink-0 mt-0.5"
+                        />
+                        <p className="text-xs text-indigo-200/90 leading-relaxed whitespace-pre-line">
+                          <span className="font-semibold text-indigo-300">
+                            Hint / Strategy:{" "}
+                          </span>
+                          {q.hint}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

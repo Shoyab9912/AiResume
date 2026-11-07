@@ -1,17 +1,30 @@
 import { downloadReport } from "../utils/html-report";
 import { prioBg, prioColor, scoreBar, scoreColor } from "../utils/ui";
-import { toBase64 } from "../utils/file";
-import { CheckCircle2, ChevronRight, Download, Target } from "lucide-react";
+import { extractPdfText } from "../utils/file";
+import {
+  Briefcase,
+  CheckCircle2,
+  ChevronRight,
+  Download,
+  Target,
+} from "lucide-react";
 import { ScoreRing } from "../ring";
 import { useToolForm } from "../hooks/useToolForm";
 import { useAiMutations, AI_QUERY_KEYS } from "../hooks/useAiMutations";
 import { useCachedResult } from "../hooks/useCachedResult";
 import type { Analysis } from "../types";
 import { Dropzone } from "../components/ui/Dropzone";
-import { ErrorAlert, LoadingState } from "../components/ui/Feedback";
+import { ErrorAlert } from "../components/ui/Feedback";
+import { AnalyzeSkeleton } from "../components/ui/AnalyzeSkeleton";
+import { Textarea } from "../components/ui/Textarea";
 import { useIsMutating } from "@tanstack/react-query";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { extractErrorMessage } from "../utils/error";
+
+interface AnalyzeFormValues {
+  jobDescription: string;
+}
 
 const Analyze = () => {
   const { file, error, setError, fileRef, handleFileChange, getDropzoneProps } =
@@ -25,8 +38,16 @@ const Analyze = () => {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit() {
-    if (isSubmitting) return;
+  const { register, handleSubmit } = useForm<AnalyzeFormValues>({
+    defaultValues: {
+      jobDescription: "",
+    },
+  });
+
+  const isBusy = isSubmitting || isPending;
+
+  async function onSubmit(formData: AnalyzeFormValues) {
+    if (isBusy) return;
     setIsSubmitting(true);
     setError("");
     clearResult();
@@ -37,47 +58,73 @@ const Analyze = () => {
     }
 
     try {
-      const pdfBase64 = await toBase64(file);
-      mutate(pdfBase64, {
-        onError: (err) => setError(extractErrorMessage(err)),
-        onSettled: () => setIsSubmitting(false),
-      });
+      const resumeText = await extractPdfText(file);
+      const cleanJd = formData.jobDescription.trim();
+
+      mutate(
+        {
+          resumeText,
+          ...(cleanJd ? { jobDescription: cleanJd } : {}),
+        },
+        {
+          onError: (err) => setError(extractErrorMessage(err)),
+          onSettled: () => setIsSubmitting(false),
+        },
+      );
     } catch (err) {
       setIsSubmitting(false);
       setError(extractErrorMessage(err));
     }
   }
 
- 
-
   return (
     <div className="bg-page min-h-screen pt-20 px-4 md:px-8 pb-12">
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
-        <Dropzone
-          file={file}
-          loading={isPending}
-          fileRef={fileRef}
-          getDropzoneProps={() => getDropzoneProps(isPending)}
-          handleFileChange={handleFileChange}
-        />
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <Dropzone
+            file={file}
+            loading={isBusy}
+            fileRef={fileRef}
+            getDropzoneProps={() => getDropzoneProps(isBusy)}
+            handleFileChange={handleFileChange}
+          />
 
-        <ErrorAlert message={error} />
+          {!isBusy && (
+            <div className="glass-card p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-white/60 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <Briefcase size={14} className="text-indigo-400" />
+                  Target Job Description
+                </label>
+                <span className="text-[11px] text-white/60 font-medium px-2 py-0.5 rounded-full bg-white/5">
+                  Optional
+                </span>
+              </div>
+              <Textarea
+                {...register("jobDescription", { maxLength: 5000 })}
+                rows={4}
+                placeholder="Paste the job description here to score your resume against specific role requirements and keywords (or leave blank for a general ATS audit)..."
+                className="resize-none"
+              />
+            </div>
+          )}
 
-        {!isSubmitting && !isPending && (
-          <button
-            onClick={handleSubmit}
-            className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-          >
-            <Target size={16} /> Analyze Resume
-          </button>
-        )}
+          <ErrorAlert message={error} />
 
-        {(isSubmitting || isPending) && (
-          <LoadingState message="Analyzing ATS Compatibility..." />
-        )}
+          {!isBusy && (
+            <button
+              type="submit"
+              className="btn-primary py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/20"
+            >
+              <Target size={16} /> Analyze Resume
+            </button>
+          )}
+        </form>
 
-        {result && !isPending && (
-          <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in">
+        {isBusy && <AnalyzeSkeleton />}
+
+        {result && !isBusy && (
+          <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in mt-2">
             <div className="relative flex items-center justify-center shrink-0">
               <ScoreRing score={result.atsScore} />
               <div className="absolute flex flex-col items-center">
@@ -86,21 +133,21 @@ const Analyze = () => {
                 >
                   {result.atsScore}
                 </span>
-                <span className="text-[10px] text-white/30 font-bold tracking-wider">
+                <span className="text-[10px] text-white/60 font-bold tracking-wider">
                   ATS
                 </span>
               </div>
             </div>
 
-            <div className="flex-1 min-w-0 min-w-[250px]">
+            <div className="flex-1 min-w-[250px]">
               <p className="font-semibold mb-1">Overall Analysis</p>
-              <p className="text-white/45 text-sm leading-relaxed">
+              <p className="text-white/60 text-sm leading-relaxed">
                 {result.summary}
               </p>
             </div>
 
             <div className="w-full glass-card p-6 flex flex-col gap-5 mt-4">
-              <p className="text-xs text-white/30 uppercase tracking-widest font-bold">
+              <p className="text-xs text-white/60 uppercase tracking-widest font-bold">
                 Score Breakdown
               </p>
               {Object.entries(result.scoreBreakdown).map(([key, val]) => (
@@ -117,13 +164,13 @@ const Analyze = () => {
                       style={{ width: `${val.score}%` }}
                     />
                   </div>
-                  <p className="text-xs text-white/35">{val.feedback}</p>
+                  <p className="text-xs text-white/60">{val.feedback}</p>
                 </div>
               ))}
             </div>
 
             <div className="w-full glass-card p-6 flex flex-col gap-3">
-              <p className="text-xs text-white/30 uppercase tracking-widest font-bold">
+              <p className="text-xs text-white/60 uppercase tracking-widest font-bold">
                 Strengths
               </p>
               {result.strengths.map((s, i) => (
@@ -141,7 +188,7 @@ const Analyze = () => {
             </div>
 
             <div className="w-full glass-card p-6 flex flex-col gap-4">
-              <p className="text-xs text-white/30 uppercase tracking-widest font-bold">
+              <p className="text-xs text-white/60 uppercase tracking-widest font-bold">
                 Actionable Suggestions
               </p>
               {result.suggestions.map((s, i) => (
@@ -172,7 +219,7 @@ const Analyze = () => {
 
               <button
                 onClick={() => downloadReport(result)}
-                className="btn-primary mt-4 flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all"
+                className="btn-primary mt-4 flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all cursor-pointer"
               >
                 <Download size={18} /> Download Detailed Report
               </button>

@@ -1,5 +1,5 @@
+// src/components/ui/Dropzone.tsx
 import { FileText, Upload } from "lucide-react";
-
 
 export interface DropzoneHandlers {
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -10,12 +10,18 @@ export interface DropzoneHandlers {
 interface DropzoneProps {
   file: File | null;
   loading: boolean;
-fileRef: React.RefObject<HTMLInputElement | null>;
+  fileRef: React.RefObject<HTMLInputElement | null>;
   getDropzoneProps: () => DropzoneHandlers;
   handleFileChange: (f: File) => void;
 }
 
-export const Dropzone = ({ file, loading, fileRef, getDropzoneProps, handleFileChange }: DropzoneProps) => {
+export const Dropzone = ({
+  file,
+  loading,
+  fileRef,
+  getDropzoneProps,
+  handleFileChange,
+}: DropzoneProps) => {
   return (
     <div
       {...getDropzoneProps()}
@@ -36,7 +42,7 @@ export const Dropzone = ({ file, loading, fileRef, getDropzoneProps, handleFileC
         <p className="font-semibold text-white/80">
           {file ? file.name : "Drop your resume here"}
         </p>
-        <p className="text-white/35 text-sm mt-0.5">
+        <p className="text-white/60 text-sm mt-0.5">
           or click to browse • PDF only • max 5MB
         </p>
       </div>
