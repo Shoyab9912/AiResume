@@ -5,8 +5,9 @@ export interface User {
   name: string;
   email: string;
   image: string;
-  subscription: Date | null;
+  subscription: Date | string | null;
   freeRequestsUsed: number;
+  isVerified: boolean;
 }
 
 export interface LoginPayload {
@@ -15,17 +16,30 @@ export interface LoginPayload {
 }
 
 export interface RegisterPayload {
-  name: string;
   email: string;
-  password?: string;
 }
 
-// Standard backend ApiResponse wrapper
+export interface VerifyOtpPayload {
+  email: string;
+  otp: string;
+}
+
+export interface ResendOtpPayload {
+  email: string;
+}
+
+// ── 2. STANDARD API WRAPPERS ──
+
 export interface ApiResponse<T = unknown> {
   statusCode: number;
   message: string;
   data: T;
   success?: boolean;
+}
+
+export interface ApiErrorResponse {
+  message: string;
+  errors?: Record<string, string[]>;
 }
 
 export interface ApiError {
@@ -34,11 +48,6 @@ export interface ApiError {
   };
   message?: string;
 }
-export interface ApiErrorResponse {
-  message: string;
-  errors?: Record<string, string[]>;
-}
-
 
 // ── 3. FEATURE: JOB MATCHER ──
 
@@ -51,6 +60,11 @@ export interface Job {
   skills: string[];
   whyMatch: string;
   applyTip: string;
+}
+
+export interface JobMatchResponse {
+  jobs: Job[];
+  summary: string;
 }
 
 // ── 4. FEATURE: INTERVIEW PREP ──
@@ -93,7 +107,6 @@ export interface Project {
   bullets: string[];
 }
 
-
 export interface ResumeData {
   name: string;
   email: string;
@@ -101,7 +114,7 @@ export interface ResumeData {
   location: string;
   linkedin: string;
   summary: string;
-  experience: Experience[]; 
+  experience: Experience[];
   education: Education[];
   skills: {
     technical: string[];
@@ -109,27 +122,6 @@ export interface ResumeData {
   };
   projects: Project[];
   certifications: string[];
-}
-
-export interface JobMatchResponse {
-  jobs: Job[]; 
-  summary: string;
-}
-
-// --- API Payload Interfaces ---
-export interface JobMatchPayload {
-  mode: "manual" | "resume";
-  skills?: string[];      
-  experience?: string;    
-  pdfBase64?: string;      
-}
-
-export interface GenerateInterviewPayload {
-  mode: "manual" | "resume";
-  round: "hr" | "technical";
-  skills?: string;
-  experience?: string;
-  pdfBase64?: string;
 }
 
 export interface ResumeFormData {
@@ -146,16 +138,8 @@ export interface ResumeFormData {
     soft: string[];
   };
   projects?: Project[];
-  certifications?: string[];  
+  certifications?: string[];
 }
-
-export interface BuildResumePayload {
-  mode: "manual" | "improve";
-  formData?: ResumeFormData; 
-  pdfBase64?: string;
-}
-
-
 
 // ── 6. FEATURE: RESUME ANALYZER & ATS SCORE ──
 
@@ -184,10 +168,40 @@ export interface Analysis {
   summary: string;
 }
 
+// ── 7. AI API PAYLOADS (Discriminated Unions with resumeText) ──
 
-// Payment related
+export interface AnalyzeResumePayload {
+  resumeText: string;
+  jobDescription?: string;
+}
 
-export type PaymentPlan = "monthly" | "six_month";
+export type JobMatchPayload =
+  | { mode: "manual"; skills: string[]; experience: string }
+  | { mode: "resume"; resumeText: string };
+
+export type GenerateInterviewPayload =
+  | {
+      mode: "manual";
+      round: "hr" | "technical";
+      skills: string;
+      experience: string;
+    }
+  | {
+      mode: "resume";
+      round: "hr" | "technical";
+      resumeText: string;
+    };
+
+export type BuildResumePayload =
+  | { mode: "manual"; formData: ResumeFormData }
+  | { mode: "improve"; resumeText: string };
+
+// Alias so both InterviewPayload and GenerateInterviewPayload work across imports
+export type InterviewPayload = GenerateInterviewPayload;
+
+// ── 8. PAYMENT & RAZORPAY TYPES ──
+
+export type PaymentPlan = "monthly" | "sixmonth";
 
 export interface CheckoutPayload {
   plan: PaymentPlan;
@@ -213,26 +227,19 @@ export interface RazorpayOptions {
   name: string;
   description?: string;
   order_id: string;
-
-  handler?: (
-    response: RazorpayPaymentResponse
-  ) => void;
-
+  handler?: (response: RazorpayPaymentResponse) => void;
   prefill?: {
     name?: string;
     email?: string;
     contact?: string;
   };
-
   theme?: {
     color?: string;
   };
-
   modal?: {
     ondismiss?: () => void;
   };
 }
-
 
 export interface RazorpayFailedResponse {
   error: {
@@ -251,9 +258,11 @@ export interface RazorpayFailedResponse {
 export interface RazorpayInstance {
   open(): void;
   close(): void;
-  on(event: "payment.failed", handler: (response: RazorpayFailedResponse) => void): void;
+  on(
+    event: "payment.failed",
+    handler: (response: RazorpayFailedResponse) => void,
+  ): void;
 }
-
 
 export interface RazorpayConstructor {
   new (options: RazorpayOptions): RazorpayInstance;

@@ -23,7 +23,7 @@ const Account = () => {
 
           <div className="flex-1 min-w-0">
             <h2 className="font-bold text-lg truncate">{user?.name}</h2>
-            <p className="text-white/40 text-sm flex items-center gap-1.5 truncate">
+            <p className="text-white/60 text-sm flex items-center gap-1.5 truncate">
               <Mail size={12} /> {user?.email}
             </p>
           </div>
@@ -49,13 +49,13 @@ const Account = () => {
             {isPro ? (
               <Crown size={20} className="text-emerald-400" />
             ) : (
-              <Zap size={20} className="text-white/40" />
+              <Zap size={20} className="text-white/60" />
             )}
           </div>
           <div className="flex-1">
             <p className="font-semibold">{isPro ? "Pro Plan" : "Free Plan"}</p>
             {isPro ? (
-              <p className="text-white/40 text-sm flex items-center gap-1.5 mt-0.5">
+              <p className="text-white/60 text-sm flex items-center gap-1.5 mt-0.5">
                 <Calendar size={12} /> Expires{" "}
                 {new Date(user!.subscription!).toLocaleDateString("en-IN", {
                   day: "numeric",
@@ -64,7 +64,7 @@ const Account = () => {
                 })}
               </p>
             ) : (
-              <p className="text-white/40 text-sm mt-0.5">
+              <p className="text-white/60 text-sm mt-0.5">
                 {freeLeft} of 3 free requests remaining
               </p>
             )}

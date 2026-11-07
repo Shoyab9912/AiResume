@@ -4,32 +4,24 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-
-
-
-function getCookie(name: string) {
+export function getCookie(name: string): string {
   const cookie = document.cookie
     .split("; ")
     .find((item) => item.startsWith(`${name}=`));
 
-  return cookie ? decodeURIComponent(cookie.split("=")[1]) : "";
+  return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : "";
 }
-
-
 
 const apiBaseUrl = import.meta.env.VITE_API_URL;
 
 if (!apiBaseUrl) {
-  throw new Error("vite api url is missing");
+  throw new Error("VITE_API_URL is missing");
 }
-
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
 });
-
-
 
 api.interceptors.request.use((config) => {
   const method = (config.method || "get").toUpperCase();
@@ -45,10 +37,6 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
-
-
-
-
 
 interface QueueItem {
   resolve: (value?: void) => void;
@@ -76,19 +64,30 @@ const processQueue = (error: unknown = null) => {
 const SKIP_REFRESH_PATHS = [
   "/login",
   "/register",
+  "/verify-otp",
+  "/resend-otp",
+  "/logout",
   "/refresh-token",
   "/auth/google",
 ];
 
+
 api.interceptors.response.use(
   (response: AxiosResponse) => response.data,
   async (error: AxiosError) => {
-    const originalRequest = error.config as CustomAxiosRequestConfig;
+    const originalRequest = error.config as
+      | CustomAxiosRequestConfig
+      | undefined;
+
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
 
     const isExemptRequest = SKIP_REFRESH_PATHS.some((path) =>
       originalRequest.url?.includes(path),
     );
-    if (isExemptRequest) {
+
+    if (isExemptRequest || !getCookie("csrf_token")) {
       return Promise.reject(error);
     }
 
@@ -103,12 +102,15 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await axios.get(`${apiBaseUrl}/auth/refresh-token`, {
-          withCredentials: true,
-        });
+        await axios.post(
+          `${apiBaseUrl}/auth/refresh-token`,
+          {},
+          { withCredentials: true },
+        );
         processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
+        document.cookie = "csrf_token=; Max-Age=0; path=/;";
         processQueue(refreshError);
         return Promise.reject(refreshError);
       } finally {

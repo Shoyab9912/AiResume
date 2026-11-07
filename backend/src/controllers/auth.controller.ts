@@ -1,10 +1,12 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import { LoginProvider, User } from "../models/user.model.js";
 import { BadRequestError, UnauthorizedError } from "../utils/errors.js";
-import { setAuthCookies } from "../utils/cookies.js";
+import { setAuthCookies, clearAuthCookies } from "../utils/cookies.js";
+import { generateRefreshToken } from "../utils/jwt.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { verifyGoogleIdToken } from "../utils/googleAuth.js";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { generateHash } from "../utils/generateHash.js";
 
 export const googleLogin = asyncHandler(async (req, res) => {
   const { credential } = req.body;
@@ -27,6 +29,7 @@ export const googleLogin = asyncHandler(async (req, res) => {
       name: name || "Google User",
       email,
       image: picture ?? "",
+      isVerified: true,
       loginProvider: LoginProvider.GOOGLE,
     });
   }
@@ -34,16 +37,19 @@ export const googleLogin = asyncHandler(async (req, res) => {
   const { refreshToken } = setAuthCookies(res, user._id.toString(), user.email);
 
   const shouldUpdateImage = !user.image && picture;
-  await User.findByIdAndUpdate(
+  const updatedUser = await User.findByIdAndUpdate(
     user._id,
     {
-      refreshToken,
+      refreshToken:generateHash(refreshToken),
+      isVerified: true,
       ...(shouldUpdateImage && { image: picture }),
     },
-    { runValidators: true },
+    { returnDocument:"after", runValidators: true },
   );
 
-  return res.status(200).json(new ApiResponse(200, "Google login successful", user));
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Google login successful", updatedUser));
 });
 
 export const generateAccessAndRefreshToken = asyncHandler(async (req, res) => {
@@ -53,21 +59,33 @@ export const generateAccessAndRefreshToken = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("No refresh token");
   }
 
-  const decoded = jwt.verify(
-    token,
-    process.env.REFRESH_TOKEN_SECRET as string,
-  ) as JwtPayload;
-
-  const user = await User.findById(decoded.userId).select("+refreshToken");
-
-  if (!user || user.refreshToken !== token) {
-    throw new UnauthorizedError("invalid token");
+  let decoded: JwtPayload;
+  try {
+    decoded = jwt.verify(
+      token,
+      process.env.REFRESH_TOKEN_SECRET as string,
+    ) as JwtPayload;
+  } catch {
+    clearAuthCookies(res);
+    throw new UnauthorizedError("Invalid or expired token");
   }
 
-  const { refreshToken } = setAuthCookies(res, user._id.toString(), user.email);
+  const newRefreshToken = generateRefreshToken(decoded.userId);
 
-  user.refreshToken = refreshToken;
-  await user.save({ validateBeforeSave: false });
+  const user = await User.findOneAndUpdate(
+    { _id: decoded.userId, refreshToken: generateHash(token) },
+    { $set: { refreshToken: generateHash(newRefreshToken) } },
+    { returnDocument: "after" },
+  );
 
-  return res.status(200).json(new ApiResponse(200, "refreshed successfully", null));
+  if (!user) {
+    clearAuthCookies(res);
+    throw new UnauthorizedError("Invalid token");
+  }
+
+  setAuthCookies(res, user._id.toString(), user.email, newRefreshToken);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "refreshed successfully", null));
 });
