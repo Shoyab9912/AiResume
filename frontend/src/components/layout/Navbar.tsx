@@ -77,6 +77,7 @@ const Navbar = () => {
       </div>
 
       <button
+       aria-label="Open menu" aria-expanded={open}
         className="md:hidden text-zinc-400 hover:text-[#00e5ff] transition-colors cursor-pointer"
         onClick={() => setOpen(!open)}
       >
