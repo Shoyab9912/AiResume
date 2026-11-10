@@ -1,23 +1,31 @@
-import Razorpay from "razorpay";
 import { Response } from "express";
+import Razorpay from "razorpay";
+import { Payment, PaymentPlan, PaymentStatus } from "../models/payment.model.js";
 import { User } from "../models/user.model.js";
-import { Payment } from "../models/payment.model.js";
 import { PAYMENT_PLANS } from "../config/plans.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { PaymentPlan, PaymentStatus } from "../models/payment.model.js";
 import {
   BadRequestError,
   ConflictError,
-  UnauthorizedError,
   NotFoundError,
+  UnauthorizedError,
 } from "../utils/errors.js";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 const instance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID as string,
-  key_secret: process.env.RAZORPAY_KEY_SECRET as string,
+  key_id: process.env.RAZORPAY_KEY_ID!,
+  key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
+
+const LEASE_MS = 30_000;
+const MAX_KEY_LENGTH = 36;
+
+const isDuplicateKeyError = (err: unknown): boolean =>
+  typeof err === "object" &&
+  err !== null &&
+  "code" in err &&
+  (err as { code?: number }).code === 11000;
 
 const createCheckoutResponse = (payment: {
   orderId: string;
@@ -29,6 +37,15 @@ const createCheckoutResponse = (payment: {
   amount: payment.amount,
   currency: payment.currency,
 });
+
+const sendCheckout = (
+  res: Response,
+  status: number,
+  payment: { orderId: string; amount: number; currency: string },
+) =>
+  res
+    .status(status)
+    .json(new ApiResponse(status, "", createCheckoutResponse(payment)));
 
 export const checkout = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
@@ -43,9 +60,12 @@ export const checkout = asyncHandler(
     if (
       !headerIdempotencyKey ||
       Array.isArray(headerIdempotencyKey) ||
-      !headerIdempotencyKey.trim()
+      !headerIdempotencyKey.trim() ||
+      headerIdempotencyKey.trim().length > MAX_KEY_LENGTH
     ) {
-      throw new BadRequestError("Valid Idempotency-Key header is required ");
+      throw new BadRequestError(
+        `Valid Idempotency-Key header (max ${MAX_KEY_LENGTH} chars) is required`,
+      );
     }
 
     const idempotencyKey = headerIdempotencyKey.trim();
@@ -61,7 +81,13 @@ export const checkout = asyncHandler(
       throw new BadRequestError("Unsupported payment plan");
     }
 
+    const amount: number = selectedPlan.amount;
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new Error(`Invalid configured amount for plan ${validatedPlan}`);
+    }
+
     const user = await User.findById(userId);
+  
     if (!user) {
       throw new NotFoundError("User not found");
     }
@@ -70,36 +96,40 @@ export const checkout = asyncHandler(
       throw new ConflictError("User already subscribed");
     }
 
+   
+    const openPayment = await Payment.findOne({
+      userId,
+      plan: validatedPlan,
+      amount,
+      orderId: { $ne: null },
+      status: { $in: [PaymentStatus.CREATED, PaymentStatus.FAILED] },
+    }).sort({ createdAt: -1 });
+
+    if (openPayment?.orderId) {
+      return sendCheckout(res, 200, {
+        orderId: openPayment.orderId,
+        amount: openPayment.amount,
+        currency: openPayment.currency,
+      });
+    }
+
+   
     const payment = await Payment.findOneAndUpdate(
-      {
-        userId,
-        idempotencyKey,
-      },
+      { userId, idempotencyKey },
       {
         $setOnInsert: {
-          userId,
-          idempotencyKey,
           plan: validatedPlan,
-          amount: selectedPlan.amount,
+          amount,
           currency: "INR",
           status: PaymentStatus.INITIATING,
           lockUntil: null,
         },
       },
-      {
-        upsert: true,
-        returnDocument: "after",
-      },
+      { upsert: true, returnDocument: "after",runValidators:true },
     ).catch(async (err: unknown) => {
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "code" in err &&
-        err.code === 11000
-      ) {
+      if (isDuplicateKeyError(err)) {
         return Payment.findOne({ userId, idempotencyKey });
       }
-
       throw err;
     });
 
@@ -107,10 +137,7 @@ export const checkout = asyncHandler(
       throw new ConflictError("Unable to initialize checkout request");
     }
 
-    if (
-      payment.plan !== validatedPlan ||
-      payment.amount !== selectedPlan.amount
-    ) {
+    if (payment.plan !== validatedPlan || payment.amount !== amount) {
       throw new ConflictError("Idempotency key reused with different payload");
     }
 
@@ -123,39 +150,28 @@ export const checkout = asyncHandler(
       (payment.status === PaymentStatus.CREATED ||
         payment.status === PaymentStatus.FAILED)
     ) {
-      return res.status(200).json(
-        new ApiResponse(
-          200,
-          "",
-          createCheckoutResponse({
-            orderId: payment.orderId,
-            amount: payment.amount,
-            currency: payment.currency,
-          }),
-        ),
-      );
+      return sendCheckout(res, 200, {
+        orderId: payment.orderId,
+        amount: payment.amount,
+        currency: payment.currency,
+      });
     }
 
+    
     const now = new Date();
-    const leaseUntil = new Date(now.getTime() + 15_000);
+    const leaseUntil = new Date(now.getTime() + LEASE_MS);
 
-    const lockOwner = await Payment.findOneAndUpdate(
+    const leaseOwner = await Payment.findOneAndUpdate(
       {
         _id: payment._id,
         status: PaymentStatus.INITIATING,
         $or: [{ lockUntil: null }, { lockUntil: { $lt: now } }],
       },
-      {
-        $set: {
-          lockUntil: leaseUntil,
-        },
-      },
-      {
-        returnDocument: "after",
-      },
+      { $set: { lockUntil: leaseUntil } },
+      { returnDocument: "after",runValidators:true },
     );
 
-    if (!lockOwner) {
+    if (!leaseOwner) {
       const latestPayment = await Payment.findById(payment._id).lean();
 
       if (latestPayment?.status === PaymentStatus.CAPTURED) {
@@ -167,92 +183,58 @@ export const checkout = asyncHandler(
         (latestPayment.status === PaymentStatus.CREATED ||
           latestPayment.status === PaymentStatus.FAILED)
       ) {
-        return res.status(200).json(
-          new ApiResponse(
-            200,
-            "",
-            createCheckoutResponse({
-              orderId: latestPayment.orderId,
-              amount: latestPayment.amount,
-              currency: latestPayment.currency,
-            }),
-          ),
-        );
+        return sendCheckout(res, 200, {
+          orderId: latestPayment.orderId,
+          amount: latestPayment.amount,
+          currency: latestPayment.currency,
+        });
       }
 
       throw new ConflictError("Checkout request already in progress");
     }
 
     try {
-      const receipt = payment._id.toString();
-
-      let razorpayOrderId: string | null = null;
-      const existingOrders = await instance.orders.all({
-        receipt,
-        count: 1,
+      const order = await instance.orders.create({
+        amount,
+        currency: "INR",
+        receipt: payment._id.toString(),
+        notes: {
+          userId: userId.toString(),
+          plan: validatedPlan,
+        },
       });
 
-      if (existingOrders?.items?.length > 0) {
-        razorpayOrderId = existingOrders.items[0]!.id;
-      } else {
-        const order = await instance.orders.create({
-          amount: selectedPlan.amount,
-          currency: "INR",
-          receipt,
-          notes: {
-            userId: userId.toString(),
-            plan: validatedPlan,
-          },
-        });
-        razorpayOrderId = order.id;
-      }
-
+      
       const updatedPayment = await Payment.findOneAndUpdate(
         {
           _id: payment._id,
           status: PaymentStatus.INITIATING,
-        },
-        {
-          $set: {
-            orderId: razorpayOrderId,
-            status: PaymentStatus.CREATED,
-          },
-          $unset: {
-            lockUntil: 1,
-          },
-        },
-        {
-          returnDocument: "after",
-        },
-      );
-
-      if (!updatedPayment || !updatedPayment.orderId) {
-        throw new ConflictError("Payment state changed unexpectedly");
-      }
-
-      return res.status(201).json(
-        new ApiResponse(
-          201,
-          "",
-          createCheckoutResponse({
-            orderId: updatedPayment.orderId,
-            amount: updatedPayment.amount,
-            currency: updatedPayment.currency,
-          }),
-        ),
-      );
-    } catch (error) {
-      await Payment.updateOne(
-        {
-          _id: payment._id,
           lockUntil: leaseUntil,
         },
         {
-          $unset: {
-            lockUntil: 1,
-          },
+          $set: { orderId: order.id, status: PaymentStatus.CREATED },
+          $unset: { lockUntil: 1 },
         },
+        { returnDocument: "after",runValidators:true },
       );
+
+      if (!updatedPayment || !updatedPayment.orderId) {
+        throw new ConflictError(
+          "Checkout state changed unexpectedly. Please retry.",
+        );
+      }
+
+      return sendCheckout(res, 201, {
+        orderId: updatedPayment.orderId,
+        amount: updatedPayment.amount,
+        currency: updatedPayment.currency,
+      });
+    } catch (error) {
+       await Payment.updateOne(
+        { _id: payment._id, lockUntil: leaseUntil },
+        { $unset: { lockUntil: 1 } },
+      );
+
       throw error;
     }
   },
