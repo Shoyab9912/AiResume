@@ -105,7 +105,7 @@ export const handleRazorpayWebhook = asyncHandler(
             {
               $set: { status: PaymentStatus.FAILED },
             },
-            { session: dbSession },
+            { session: dbSession, runValidators: true, },
           );
           return;
         }
@@ -128,7 +128,7 @@ export const handleRazorpayWebhook = asyncHandler(
               paymentId,
             },
           },
-          { returnDocument: "after", session: dbSession },
+          { returnDocument: "after", session: dbSession, runValidators: true, },
         );
 
         if (!capturedPayment) {
@@ -158,7 +158,7 @@ export const handleRazorpayWebhook = asyncHandler(
               },
             },
           ],
-          { returnDocument: "after", session: dbSession,updatePipeline:true },
+          { returnDocument: "after", session: dbSession,updatePipeline:true, runValidators: true,},
         );
 
         if (!updatedUser) {
