@@ -8,7 +8,7 @@ class ApiError extends Error {
   constructor(
     statusCode: number,
     message: string = "something went wrong",
-    errors: unknown = [],
+   errors?: Record<string, string[]>,
     data?: object,
     stack: string = ""
   ) {

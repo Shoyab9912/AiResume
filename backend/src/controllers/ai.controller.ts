@@ -73,9 +73,14 @@ async function callModel(
   try {
     return JSON.parse(rawText);
   } catch {
-    throw new ApiError(502, "AI returned invalid JSON", [], {
-      raw: response.text,
-    });
+    throw new ApiError(
+      502,
+      "AI returned invalid JSON",
+      {},
+      {
+        raw: response.text,
+      },
+    );
   }
 }
 
@@ -88,8 +93,7 @@ function mapGeminiError(err: unknown): ApiError {
     const parsed = JSON.parse(raw);
     code = parsed?.error?.code;
   } catch {
-   // raw is not valid JSON.
-
+    // raw is not valid JSON.
   }
 
   if (code === 503) {
@@ -115,8 +119,6 @@ function mapGeminiError(err: unknown): ApiError {
   return new ApiError(502, "AI service failed to respond. Please try again.");
 }
 
-
-
 async function reserveQuotaOrThrow(userId?: string): Promise<{
   userId: string;
   usedFreeCredit: boolean;
@@ -126,7 +128,6 @@ async function reserveQuotaOrThrow(userId?: string): Promise<{
   }
 
   const now = new Date();
-
 
   const proUser = await User.findOne({
     _id: userId,
@@ -162,11 +163,7 @@ async function reserveQuotaOrThrow(userId?: string): Promise<{
   return { userId: freeUser._id.toString(), usedFreeCredit: true };
 }
 
-
-async function refundFreeCreditIfUsed(
-  userId: string,
-  usedFreeCredit: boolean,
-) {
+async function refundFreeCreditIfUsed(userId: string, usedFreeCredit: boolean) {
   if (usedFreeCredit) {
     await User.findOneAndUpdate(
       { _id: userId, freeRequestsUsed: { $gt: 0 } },
@@ -195,9 +192,14 @@ export const analyzeResume = asyncHandler(
       const result = ResumeAnalysisSchema.safeParse(parsed);
 
       if (!result.success) {
-        throw new ApiError(500, "AI response failed validation", [], {
-          issues: result.error.issues,
-        });
+        throw new ApiError(
+          500,
+          "AI response failed validation",
+          {},
+          {
+            issues: result.error.issues,
+          },
+        );
       }
 
       return res
@@ -236,9 +238,14 @@ export const jobMatcher = asyncHandler(
       const result = JobMatchSchema.safeParse(parsed);
 
       if (!result.success) {
-        throw new ApiError(500, "AI response failed validation", [], {
-          issues: result.error.issues,
-        });
+        throw new ApiError(
+          500,
+          "AI response failed validation",
+          {},
+          {
+            issues: result.error.issues,
+          },
+        );
       }
 
       return res
@@ -275,9 +282,14 @@ export const generateInterview = asyncHandler(
       const result = InterviewSchema.safeParse(parsed);
 
       if (!result.success) {
-        throw new ApiError(500, "AI response failed validation", [], {
-          issues: result.error.issues,
-        });
+        throw new ApiError(
+          500,
+          "AI response failed validation",
+          {},
+          {
+            issues: result.error.issues,
+          },
+        );
       }
 
       return res
@@ -316,9 +328,14 @@ export const buildResume = asyncHandler(
       const result = BuiltResumeSchema.safeParse(parsed);
 
       if (!result.success) {
-        throw new ApiError(500, "AI response failed validation", [], {
-          issues: result.error.issues,
-        });
+        throw new ApiError(
+          500,
+          "AI response failed validation",
+          {},
+          {
+            issues: result.error.issues,
+          },
+        );
       }
 
       return res

@@ -24,7 +24,7 @@ export async function checkOtpLock(email: string): Promise<void> {
 
   const attempts = Number((await redis.get(attemptsKey)) ?? 0);
 
-  if (attempts >= 5) {
+  if (attempts >= MAX_OTP_ATTEMPTS) {
     throw new BadRequestError(
       "Too many incorrect attempts. Please try again after 15 minutes.",
     );

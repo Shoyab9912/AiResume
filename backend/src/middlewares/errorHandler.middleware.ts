@@ -30,7 +30,7 @@ export const errorHandler = (
     return;
   }
 
- if ("code" in err && err.code === 11000)  {
+  if ("code" in err && err.code === 11000) {
     res.status(409).json({
       status: "error",
       message: "Duplicate value",
@@ -42,14 +42,16 @@ export const errorHandler = (
     res.status(err.statusCode).json({
       status: "error",
       message: err.message,
+      errors: err.errors,
       ...(process.env.NODE_ENV !== "production" && {
-        errors: err.errors,
         data: err.data,
       }),
     });
+
     return;
   }
 
+  
   res.status(500).json({
     status: "error",
     message: "Internal Server Error",

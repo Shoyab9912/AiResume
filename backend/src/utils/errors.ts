@@ -12,14 +12,14 @@ class BadRequestError extends ApiError {
     super(400, message);
   }
 }
-
-
 class ValidationError extends ApiError {
-  constructor(message: string = "Validation failed", errors: unknown = []) {
+  constructor(
+    message = "Validation failed",
+    errors: Record<string, string[]> = {},
+  ) {
     super(422, message, errors);
   }
 }
-
 class UnauthorizedError extends ApiError {
   constructor(message: string = "Unauthorized") {
     super(401, message);
