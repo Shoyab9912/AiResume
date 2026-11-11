@@ -15,6 +15,9 @@ import Analyze from "./pages/Analyze";
 import JobMatcher from "./pages/JobMatcher";
 import InterviewPrep from "./pages/InterviewPrep";
 import BuildResume from "./pages/BuildResume";
+import NotFound from "./pages/NotFound";
+
+
 
 const withBoundary = (element: React.ReactElement) => (
   <ErrorBoundary fallback={DefaultFallback}>
@@ -44,6 +47,7 @@ function App() {
             <Route path="/resumebuilder" element={<BuildResume />} />
           </Route>
         </Route>
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );

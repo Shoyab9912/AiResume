@@ -89,7 +89,7 @@ const Register = () => {
       { email, otp: data.otp },
       {
         onSuccess: () => {
-          navigate("/dashboard");
+          navigate("/");
         },
         onError: (err: ApiError) => {
           setOtpFieldError("otp", {
