@@ -24,10 +24,7 @@ export async function createAndSendOtp(email: string): Promise<void> {
 
   const otpKey = `otp:${cleanEmail}`;
 
-  await redis
-    .multi()
-    .set(otpKey, hashed, "EX", 600)
-    .exec();
+  await redis.set(otpKey, hashed, "EX", 600)
 
   await emailQueue.add(
     "send-otp",

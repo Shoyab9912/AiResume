@@ -2,7 +2,7 @@
 import { generateHash } from "./generateHash.js";
 import redis from "../config/redis.js";
 
-const MAX_OTP_ATTEMPTS = 5;
+export const MAX_OTP_ATTEMPTS = 5;
 const ATTEMPT_WINDOW = 15 * 60 * 1000;
 
 export function getOtpAttemptKey(email: string): string {

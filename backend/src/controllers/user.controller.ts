@@ -13,36 +13,29 @@ import { hashOtp } from "../utils/otp.js";
 import { createAndSendOtp } from "../services/otp.service.js";
 import redis from "../config/redis.js";
 import {
+  MAX_OTP_ATTEMPTS,
   getOtpAttemptKey,
   incrementOtpAttempts,
 } from "../utils/otpAttempts.js";
 import { generateHash } from "../utils/generateHash.js";
 
-
-
-
 export async function checkOtpLock(email: string): Promise<void> {
   const attemptsKey = getOtpAttemptKey(email);
 
-  const attempts = Number(
-    (await redis.get(attemptsKey)) ?? 0
-  );
+  const attempts = Number((await redis.get(attemptsKey)) ?? 0);
 
   if (attempts >= 5) {
     throw new BadRequestError(
-      "Too many incorrect attempts. Please try again after 15 minutes."
+      "Too many incorrect attempts. Please try again after 15 minutes.",
     );
   }
 }
-
-
 
 const registerUser = asyncHandler(async (req, res) => {
   const { name, password } = req.body;
   const email = req.body.email.trim().toLowerCase();
 
   await checkOtpLock(email);
-
 
   const existingUser = await User.findOne({ email });
 
@@ -92,7 +85,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
   const currentAttempts = Number((await redis.get(attemptsKey)) ?? 0);
 
-  if (currentAttempts >= 5) {
+  if (currentAttempts >= MAX_OTP_ATTEMPTS) {
     throw new BadRequestError(
       "Too many incorrect attempts. Please try again after 15 minutes.",
     );
@@ -117,7 +110,13 @@ const verifyOtp = asyncHandler(async (req, res) => {
     crypto.timingSafeEqual(storedBuf, submittedBuf);
 
   if (!isValid) {
-    await incrementOtpAttempts(otpKey, attemptsKey);
+    const attempts = await incrementOtpAttempts(otpKey, attemptsKey);
+
+    if (attempts >= MAX_OTP_ATTEMPTS) {
+      throw new BadRequestError(
+        "Too many incorrect attempts. Please try again after 15 minutes.",
+      );
+    }
 
     throw new BadRequestError("Invalid or expired verification code");
   }
@@ -141,7 +140,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 const resendOtp = asyncHandler(async (req, res) => {
   const email = req.body.email.trim().toLowerCase();
 
-  await checkOtpLock(email)
+  await checkOtpLock(email);
 
   const user = await User.findOne({ email }).select("email isVerified").lean();
 
