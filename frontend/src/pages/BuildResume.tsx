@@ -25,7 +25,11 @@ import type { ResumeData, ResumeFormData, BuildResumePayload } from "../types";
 
 const buildResumeFormSchema = z.object({
   name: z.string().trim().min(2, "Full name is required"),
-  email: z.string().trim().email("Valid email is required"),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email("Invalid email address")),
   phone: z.string().trim().min(6, "Phone number is required"),
   location: z.string().trim().min(2, "Location is required"),
   linkedin: z.string().trim().optional().default(""),
@@ -99,6 +103,7 @@ const BuildResume = () => {
   const { result, clearResult } = useCachedResult<ResumeData>(
     AI_QUERY_KEYS.builtResume,
   );
+
   const isBusy = isSubmitting || isPending;
 
   const methods = useForm<BuildResumeFormValues>({

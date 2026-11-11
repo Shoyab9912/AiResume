@@ -33,9 +33,11 @@ const Analyze = () => {
   const { mutate } = analyzeResumeMutation;
   const isPending =
     useIsMutating({ mutationKey: AI_QUERY_KEYS.resumeAnalysis }) > 0;
+
   const { result, clearResult } = useCachedResult<Analysis>(
     AI_QUERY_KEYS.resumeAnalysis,
   );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit } = useForm<AnalyzeFormValues>({
@@ -122,6 +124,8 @@ const Analyze = () => {
         </form>
 
         {isBusy && <AnalyzeSkeleton />}
+
+        
 
         {result && !isBusy && (
           <div className="glass-card p-6 flex items-start gap-6 flex-wrap animate-fade-in mt-2">

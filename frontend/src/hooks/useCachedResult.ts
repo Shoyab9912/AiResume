@@ -1,18 +1,16 @@
 import { useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 
-
 export function useCachedResult<T>(key: QueryKey) {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
   const { data: result } = useQuery<T | null>({
     queryKey: key,
     queryFn: () => Promise.resolve(null),
-    staleTime: 1000 * 60 * 30,
-    gcTime: 1000 * 60 * 40,
     enabled: false,
+    gcTime: 1000 * 60 * 40,
   });
 
-  const clearResult = () => queryClient.removeQueries({ queryKey: key });
+  const clearResult = () => qc.setQueryData(key, null);
 
   return { result, clearResult };
 }
