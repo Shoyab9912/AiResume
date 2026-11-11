@@ -16,13 +16,9 @@ const registerSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(2, "Name must be at least 2 characters")
+    .min(5, "Name must be at least 5 characters")
     .max(50, "Name cannot exceed 50 characters"),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .pipe(z.email("Invalid email address")),
+  email: z.string().trim().toLowerCase().pipe(z.email("Invalid email address")),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -40,8 +36,12 @@ type OtpFormValues = z.infer<typeof otpSchema>;
 
 const Register = () => {
   const navigate = useNavigate();
-  const { registerMutation, googleMutation, verifyOtpMutation, resendOtpMutation } =
-    useAuthMutations();
+  const {
+    registerMutation,
+    googleMutation,
+    verifyOtpMutation,
+    resendOtpMutation,
+  } = useAuthMutations();
 
   const [step, setStep] = useState<"register" | "otp">("register");
   const [email, setEmail] = useState("");
@@ -63,14 +63,15 @@ const Register = () => {
       },
       onError: (error: ApiError) => {
         const backendErrors = error.response?.data?.errors;
-        if (backendErrors) {
-          Object.entries(backendErrors).forEach(([field, messages]) => {
-            setError(field as keyof RegisterFormValues, {
-              type: "server",
-              message: messages[0],
-            });
+
+        if (!backendErrors) return;
+
+        Object.entries(backendErrors).forEach(([field, messages]) => {
+          setError(field as keyof RegisterFormValues, {
+            type: "server",
+            message: messages[0] ?? "Invalid value",
           });
-        }
+        });
       },
     });
   };
@@ -97,7 +98,7 @@ const Register = () => {
             message: err.response?.data?.message ?? "Invalid code",
           });
         },
-      }
+      },
     );
   };
 
@@ -108,7 +109,7 @@ const Register = () => {
         {
           onSuccess: () => resolve(),
           onError: (err: ApiError) => reject(err),
-        }
+        },
       );
     });
   };
@@ -159,7 +160,9 @@ const Register = () => {
             </div>
 
             <div className="divider-subtle w-full flex items-center justify-center">
-              <span className="text-white/60 text-xs px-2 bg-transparent">OR</span>
+              <span className="text-white/60 text-xs px-2 bg-transparent">
+                OR
+              </span>
             </div>
 
             <form
@@ -202,18 +205,27 @@ const Register = () => {
 
             <div className="text-[11px] text-white/60 text-center leading-relaxed mt-2">
               By creating an account you agree to our{" "}
-              <a href="#" className="underline underline-offset-2 hover:text-white/50 transition-colors">
+              <a
+                href="#"
+                className="underline underline-offset-2 hover:text-white/50 transition-colors"
+              >
                 Terms
               </a>{" "}
               &{" "}
-              <a href="#" className="underline underline-offset-2 hover:text-white/50 transition-colors">
+              <a
+                href="#"
+                className="underline underline-offset-2 hover:text-white/50 transition-colors"
+              >
                 Privacy Policy
               </a>
             </div>
 
             <p className="text-sm text-white/50 mt-2">
               Already have an account?{" "}
-              <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
+              <Link
+                to="/login"
+                className="text-indigo-400 hover:text-indigo-300 font-medium"
+              >
                 Log in
               </Link>
             </p>
@@ -226,7 +238,8 @@ const Register = () => {
             className="w-full flex flex-col gap-4"
           >
             <p className="text-sm text-white/50 text-center">
-              Enter the 6-digit code sent to <span className="text-white/70">{email}</span>
+              Enter the 6-digit code sent to{" "}
+              <span className="text-white/70">{email}</span>
             </p>
 
             <Input
