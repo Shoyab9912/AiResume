@@ -23,7 +23,7 @@ export interface IUser extends Document {
 
 const schema: Schema<IUser> = new Schema(
   {
-    name: { type: String, required: true },
+    name: { type: String, required: true,minLength:5,maxLength:50 },
     email: { type: String, required: true, unique: true,lowercase:true,trim:true },
     image: { type: String, default: "" },
     password: { type: String, select: false },
